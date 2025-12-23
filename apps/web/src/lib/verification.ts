@@ -250,8 +250,8 @@ export function verifyMessageSignature(
       };
     }
 
-    // Get network config (defaults to Bitcoin)
-    const config = networkConfig || NETWORK_CONFIGS.bitcoin;
+    // Get network config (defaults to current chain from config)
+    const config = networkConfig || getNetworkConfig();
 
     // Validate address prefix
     if (config.addressPrefix && !address.startsWith(config.addressPrefix)) {
