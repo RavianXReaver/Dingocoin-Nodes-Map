@@ -71,6 +71,10 @@ data/geoip/GeoIP.conf
 config/project.config.yaml
 !config/project.config.yaml.example
 
+# Deploy workflow (fork-specific, keep template only)
+.github/workflows/deploy.yml
+!.github/workflows/deploy.yml.example
+
 # Supabase
 .supabase
 

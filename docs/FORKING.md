@@ -497,6 +497,79 @@ features:
 
 ---
 
+## CI/CD Workflows
+
+AtlasP2P uses a fork-friendly GitHub Actions workflow structure:
+
+### Included Workflows
+
+| Workflow | File | Purpose | Customization Needed |
+|----------|------|---------|---------------------|
+| **CI** | `ci.yml` | Lint, typecheck, build, security audit | None - works automatically |
+| **Deploy** | `deploy.yml.example` | Docker build & deployment | Copy and customize |
+
+### CI Workflow (Automatic)
+
+The CI workflow (`ci.yml`) runs automatically on:
+- Push to `main` or `master` branches
+- Pull requests targeting those branches
+
+**Jobs:**
+1. **Lint & Type Check** - ESLint + TypeScript validation
+2. **Build** - Full pnpm build verification
+3. **Validate Config** - Schema validation of `project.config.yaml`
+4. **Security Audit** - pnpm audit for vulnerabilities
+5. **Crawler Lint** - Python syntax validation
+
+No changes needed - it works for all forks.
+
+### Deploy Workflow (Fork-Specific)
+
+The deploy workflow is **gitignored** in upstream. Forks create their own:
+
+```bash
+# 1. Copy the template
+cp .github/workflows/deploy.yml.example .github/workflows/deploy.yml
+
+# 2. Edit for your deployment method
+nano .github/workflows/deploy.yml
+
+# 3. Commit (overrides gitignore)
+git add -f .github/workflows/deploy.yml
+git commit -m "Add deployment workflow"
+```
+
+**Deployment Options (in template):**
+
+- **SSH Deployment** (default) - Docker Compose on VPS
+- **Vercel** (commented) - Serverless Next.js hosting
+- **Kubernetes** (commented) - Container orchestration
+
+### Required GitHub Secrets
+
+Set these in **Settings → Secrets and variables → Actions**:
+
+| Secret | Description | Required For |
+|--------|-------------|--------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Build |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key | Build |
+| `DEPLOY_HOST` | Server hostname/IP | SSH deployment |
+| `DEPLOY_USER` | SSH username | SSH deployment |
+| `DEPLOY_KEY` | SSH private key | SSH deployment |
+| `DEPLOY_PATH` | Path on server | SSH deployment |
+| `HEALTH_CHECK_URL` | URL for post-deploy check | SSH deployment |
+| `VERCEL_TOKEN` | Vercel API token | Vercel deployment |
+| `KUBE_CONFIG` | Base64-encoded kubeconfig | Kubernetes deployment |
+
+### Why This Pattern?
+
+- **No merge conflicts**: Upstream only touches `.example` file
+- **Fork independence**: Each fork has their own deployment config
+- **Easy updates**: Pull upstream changes without workflow conflicts
+- **Flexibility**: Choose your own deployment method
+
+---
+
 ## Deployment
 
 ### Option 1: Vercel (Web App Only - Recommended)
@@ -736,20 +809,35 @@ BITCOIN_CONFIG = ChainConfig(
 
 ## Checklist: Launch Your Nodes Map
 
+**Initial Setup:**
 - [ ] Fork repository and clone locally
+- [ ] Run `make setup-fork`
 - [ ] Edit `/config/project.config.yaml` with your blockchain details
 - [ ] Add logos to `/apps/web/public/logos/`
 - [ ] Create `.env` with Supabase and MaxMind credentials
+
+**Database:**
 - [ ] Run migrations on Supabase
 - [ ] Create chain adapter in `/apps/crawler/src/adapters/`
 - [ ] Test crawler locally
+
+**Development:**
 - [ ] Build and run web app (`pnpm build && make dev`)
 - [ ] Verify nodes appear on map
-- [ ] Deploy web app to Vercel/Netlify
+
+**CI/CD Setup:**
+- [ ] Verify CI workflow runs on your fork (automatic)
+- [ ] Copy `deploy.yml.example` to `deploy.yml`
+- [ ] Configure deployment method (SSH/Vercel/K8s)
+- [ ] Set required GitHub secrets
+- [ ] Commit deploy.yml: `git add -f .github/workflows/deploy.yml`
+
+**Production:**
+- [ ] Deploy web app to Vercel/Netlify/Docker
 - [ ] Deploy crawler to VPS/Docker
 - [ ] Configure custom domain
 - [ ] Set up monitoring/alerts
-- [ ] Announce to your community! 🎉
+- [ ] Announce to your community!
 
 ---
 

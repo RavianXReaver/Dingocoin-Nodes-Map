@@ -1,0 +1,226 @@
+# ===========================================
+# DEPLOY WORKFLOW - TEMPLATE FOR FORKS
+# ===========================================
+#
+# This is a TEMPLATE file. Forks should:
+# 1. Copy this file to deploy.yml
+# 2. Customize the settings below
+# 3. Commit deploy.yml to your fork
+#
+# Setup:
+#   cp .github/workflows/deploy.yml.example .github/workflows/deploy.yml
+#   # Edit deploy.yml with your settings
+#   # Remove deploy.yml from .gitignore in your fork
+#   git add .github/workflows/deploy.yml
+#
+# ===========================================
+
+name: Deploy
+
+# ===========================================
+# TRIGGER CONFIGURATION
+# ===========================================
+# Change 'master' to your default branch name
+on:
+  push:
+    branches: [master]  # <-- CHANGE THIS to your branch (main, master, etc.)
+  workflow_dispatch:    # Allow manual trigger from GitHub UI
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+# ===========================================
+# ENVIRONMENT VARIABLES
+# ===========================================
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
+
+  # Container Registry (change if using Docker Hub, AWS ECR, etc.)
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+# ===========================================
+# REQUIRED SECRETS (set in GitHub Settings → Secrets)
+# ===========================================
+# NEXT_PUBLIC_SUPABASE_URL    - Your Supabase project URL
+# NEXT_PUBLIC_SUPABASE_ANON_KEY - Your Supabase anon key
+# DEPLOY_HOST                  - Server hostname/IP
+# DEPLOY_USER                  - SSH username
+# DEPLOY_KEY                   - SSH private key
+# DEPLOY_PATH                  - Path on server (e.g., /opt/myapp)
+# HEALTH_CHECK_URL             - URL to verify deployment (e.g., https://nodes.mychain.org)
+
+jobs:
+  # ===========================================
+  # Job 1: Build & Push Docker Images
+  # ===========================================
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build Web Image
+      - name: Extract metadata for web
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.web
+          push: true
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build Crawler Image
+      - name: Extract metadata for crawler
+        id: meta-crawler
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-crawler
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push crawler image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.crawler
+          push: true
+          tags: ${{ steps.meta-crawler.outputs.tags }}
+          labels: ${{ steps.meta-crawler.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================================
+  # Job 2: Deploy to Server (SSH Method)
+  # ===========================================
+  # Remove or modify this job based on your deployment method
+  deploy-ssh:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: production
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+
+      - name: Health Check
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          curl -f ${{ secrets.HEALTH_CHECK_URL }}/api/stats || exit 1
+          echo "Health check passed!"
+
+  # ===========================================
+  # ALTERNATIVE: Deploy to Vercel
+  # ===========================================
+  # Uncomment this job if you're deploying to Vercel instead of Docker
+  #
+  # deploy-vercel:
+  #   name: Deploy to Vercel
+  #   runs-on: ubuntu-latest
+  #   needs: build-and-push
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Deploy to Vercel
+  #       uses: amondnet/vercel-action@v25
+  #       with:
+  #         vercel-token: ${{ secrets.VERCEL_TOKEN }}
+  #         vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+  #         vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+  #         vercel-args: '--prod'
+
+  # ===========================================
+  # ALTERNATIVE: Deploy to Kubernetes
+  # ===========================================
+  # Uncomment this job if you're deploying to Kubernetes
+  #
+  # deploy-k8s:
+  #   name: Deploy to Kubernetes
+  #   runs-on: ubuntu-latest
+  #   needs: build-and-push
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Set up kubectl
+  #       uses: azure/setup-kubectl@v3
+  #
+  #     - name: Configure kubectl
+  #       run: |
+  #         echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+  #         export KUBECONFIG=kubeconfig
+  #
+  #     - name: Deploy
+  #       run: |
+  #         kubectl set image deployment/web web=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:${{ github.sha }}
+  #         kubectl set image deployment/crawler crawler=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-crawler:${{ github.sha }}
+  #         kubectl rollout status deployment/web
+  #         kubectl rollout status deployment/crawler
