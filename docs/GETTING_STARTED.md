@@ -173,15 +173,17 @@ themeConfig:
 
 ### Step 3: Add Chain
 
-```typescript
-// packages/config/src/index.ts
-dogecoin: {
-  name: 'Dogecoin',
-  ticker: 'DOGE',
-  p2pPort: 22556,
-  // ... rest of config
-}
+Edit `config/project.config.yaml`:
+
+```yaml
+chainConfig:
+  name: Dogecoin
+  ticker: DOGE
+  p2pPort: 22556
+  # ... rest of config
 ```
+
+Restart web container: `docker restart atlasp2p-web`
 
 **Full guide**: [FORKING.md](./FORKING.md)
 

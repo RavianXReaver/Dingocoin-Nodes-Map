@@ -267,12 +267,12 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 When forking for a new chain:
 
 1. **Update chain config:**
-   - `packages/config/src/index.ts` - Chain metadata
+   - `config/project.config.yaml` - All chain configuration
    - `apps/crawler/src/config.py` - P2P protocol settings
 
 2. **Update branding:**
-   - `apps/web/src/app/layout.tsx` - Site title
-   - `packages/config/src/theme.ts` - Colors and styling
+   - `config/project.config.yaml` - Colors, logos, and styling
+   - Restart web container: `docker restart atlasp2p-web`
 
 3. **Update environment:**
    ```bash

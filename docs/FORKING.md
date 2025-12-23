@@ -766,15 +766,19 @@ BITCOIN_CONFIG = ChainConfig(
 
 ### Custom Node Tiers
 
-Edit `/packages/config/src/tiers.ts` to customize tier thresholds:
+Node tier thresholds are calculated in the database tier calculation logic. To customize tier colors and icons, edit `/config/project.config.yaml`:
 
-```typescript
-export const TIER_THRESHOLDS = {
-  diamond: { pix: 950, uptime: 99.9, latency: 50 },
-  gold: { pix: 900, uptime: 98, latency: 100 },
-  silver: { pix: 850, uptime: 95, latency: 200 },
-  bronze: { pix: 800, uptime: 90, latency: 500 },
-};
+```yaml
+themeConfig:
+  tierColors:
+    diamond:
+      color: "#00d4ff"
+      icon: "gem"
+      label: "Diamond"
+    gold:
+      color: "#ffd700"
+      icon: "trophy"
+    # ... etc
 ```
 
 ### Custom PIX Score Formula
