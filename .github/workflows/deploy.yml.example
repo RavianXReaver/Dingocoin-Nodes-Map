@@ -116,7 +116,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.web
+          file: Dockerfile.web
           push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
@@ -138,7 +138,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.crawler
+          file: Dockerfile.crawler
           push: true
           tags: ${{ steps.meta-crawler.outputs.tags }}
           labels: ${{ steps.meta-crawler.outputs.labels }}

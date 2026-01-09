@@ -28,8 +28,21 @@ AtlasP2P provides a **fully automated CI/CD workflow** that:
 
 Your fork should have:
 ```bash
-.github/workflows/deploy-production.yml  # CI/CD workflow (already included)
-config/project.config.yaml                # Deployment config
+.github/workflows/ci.yml                # CI checks (from upstream)
+.github/workflows/deploy.yml            # Deployment workflow (copy from .example)
+config/project.config.yaml              # Deployment config (customize for your chain)
+```
+
+**Setup deployment workflow:**
+```bash
+# Copy the template
+cp .github/workflows/deploy.yml.example .github/workflows/deploy.yml
+
+# Edit deploy.yml with your settings (branch name, registry, etc.)
+
+# Remove deploy.yml from .gitignore in your fork
+git add .github/workflows/deploy.yml
+git commit -m "Add deployment workflow for MyChain"
 ```
 
 ### 2. Server Requirements

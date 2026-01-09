@@ -486,7 +486,7 @@ AtlasP2P uses a fork-friendly GitHub Actions workflow structure:
 | Workflow | File | Purpose | Customization Needed |
 |----------|------|---------|---------------------|
 | **CI** | `ci.yml` | Lint, typecheck, build, security audit | None - works automatically |
-| **Deploy** | `deploy-production.yml` | Automated production deployment | Configure via project.config.yaml |
+| **Deploy** | `deploy.yml` (from `.example`) | Automated production deployment | Copy from example, customize for your setup |
 
 ### CI Workflow (Automatic)
 
@@ -503,9 +503,18 @@ The CI workflow (`ci.yml`) runs automatically on:
 
 No changes needed - it works for all forks.
 
-### Deploy Workflow (Config-Driven)
+### Deploy Workflow (Fork-Specific)
 
-The deploy workflow (`deploy-production.yml`) is **committed to the repo** and works via configuration:
+**Forks create their own deployment workflow** by copying the template:
+
+```bash
+cp .github/workflows/deploy.yml.example .github/workflows/deploy.yml
+# Edit deploy.yml with your deployment settings
+# Remove deploy.yml from .gitignore in your fork
+git add .github/workflows/deploy.yml
+```
+
+The deploy workflow (`deploy.yml`) runs on push to your main branch and provides:
 
 **Features:**
 - ✅ Auto-detects infrastructure (Caddy, secrets management)

@@ -38,7 +38,19 @@ This project is **production-ready** with the following infrastructure:
 
 **Complete automated deployment pipeline** with smart infrastructure detection.
 
-**Workflow:** `.github/workflows/deploy-production.yml`
+**Setup:**
+```bash
+# Copy the deployment workflow template
+cp .github/workflows/deploy.yml.example .github/workflows/deploy.yml
+
+# Customize for your fork (branch name, registry settings)
+# vim .github/workflows/deploy.yml
+
+# Commit to your fork (remove from .gitignore first)
+git add .github/workflows/deploy.yml
+```
+
+**Workflow:** `.github/workflows/deploy.yml` (created from `.example`)
 
 **Features:**
 - ✅ Auto-detects Caddy mode (container/host/none)
