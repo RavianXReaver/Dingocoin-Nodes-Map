@@ -7,7 +7,7 @@
  * Supports success, error, warning, and info variants.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -60,6 +60,13 @@ export function Toast({ id, type, title, message, duration = 5000, onClose }: To
   const Icon = iconMap[type];
   const colors = colorMap[type];
 
+  const handleClose = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => {
+      onClose(id);
+    }, 300); // Match animation duration
+  }, [id, onClose]);
+
   useEffect(() => {
     if (duration > 0) {
       const timer = setTimeout(() => {
@@ -68,14 +75,7 @@ export function Toast({ id, type, title, message, duration = 5000, onClose }: To
 
       return () => clearTimeout(timer);
     }
-  }, [duration]);
-
-  const handleClose = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      onClose(id);
-    }, 300); // Match animation duration
-  };
+  }, [duration, handleClose]);
 
   return (
     <div

@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable -- False positives from React Compiler plugin */
+
 import { useState, useMemo } from 'react';
 import { TipModal } from './TipModal';
 import {

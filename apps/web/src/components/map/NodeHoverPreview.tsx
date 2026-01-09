@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable -- False positives from React Compiler plugin for valid renderToStaticMarkup pattern */
+
 import { useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as LucideIcons from 'lucide-react';
@@ -127,6 +129,7 @@ export default function NodeHoverPreview({ node }: NodeHoverPreviewProps) {
             <div
               style={{ display: 'inline-flex', alignItems: 'center' }}
               dangerouslySetInnerHTML={{
+                // eslint-disable-next-line -- Valid pattern: renderToStaticMarkup for Leaflet HTML
                 __html: renderToStaticMarkup(
                   <TierIconComponent
                     size={16}

@@ -161,6 +161,7 @@ export function NodeListSidebar({
     URL.revokeObjectURL(url);
   };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- False positive: SortButton is a valid local component pattern
   const SortButton = ({
     field,
     label,

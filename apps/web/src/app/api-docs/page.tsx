@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Book,
@@ -587,19 +587,19 @@ export default function ApiDocsPage() {
   const [activeCategory, setActiveCategory] = useState<string>('nodes');
   const [baseUrl, setBaseUrl] = useState('');
 
+  const checkAuth = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    setIsAuthenticated(!!user);
+  }, []);
+
   useEffect(() => {
     checkAuth();
     // Set base URL from window.location.origin (works for both dev and prod)
     if (typeof window !== 'undefined') {
       setBaseUrl(window.location.origin);
     }
-  }, []);
-
-  const checkAuth = async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    setIsAuthenticated(!!user);
-  };
+  }, [checkAuth]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);

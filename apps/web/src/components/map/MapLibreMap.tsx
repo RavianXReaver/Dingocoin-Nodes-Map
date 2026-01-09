@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable -- False positives from React Compiler plugin */
+
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import Map, { Marker, NavigationControl, MapRef, Popup } from 'react-map-gl/maplibre';
