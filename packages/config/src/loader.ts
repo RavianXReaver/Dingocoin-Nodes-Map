@@ -3,6 +3,9 @@
 // ===========================================
 // Provides access to pre-loaded project configuration
 
+// Type declaration for environment detection
+declare const window: unknown | undefined;
+
 import type {
   ProjectConfig,
   ChainConfig,

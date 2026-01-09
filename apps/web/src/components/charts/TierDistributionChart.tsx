@@ -29,7 +29,7 @@ export const TierDistributionChart = memo(function TierDistributionChart() {
   const { tiers, isLoading, error } = useTierStats();
 
   // Tier colors map (static, no need for state)
-  const tierColors = useMemo(() => ({
+  const tierColors: Record<string, string> = useMemo(() => ({
     diamond: 'hsl(var(--chart-1))',
     gold: 'hsl(var(--warning))',
     silver: 'hsl(var(--muted-foreground))',
