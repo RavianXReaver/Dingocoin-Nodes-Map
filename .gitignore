@@ -45,6 +45,9 @@ playwright-screenshots/
 # Turbo
 .turbo
 
+# TypeScript
+*.tsbuildinfo
+
 # Python
 __pycache__
 *.py[cod]

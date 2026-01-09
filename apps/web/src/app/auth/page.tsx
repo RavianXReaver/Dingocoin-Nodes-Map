@@ -9,19 +9,21 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Mail, Lock, User, Loader2, AlertCircle, CheckCircle, ArrowLeft, Shield } from 'lucide-react';
+import { Mail, Lock, User, Loader2, AlertCircle, CheckCircle, ArrowLeft, Shield, HelpCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { TurnstileWidget } from '@/components/turnstile/TurnstileWidget';
 import { EmailVerificationInput } from '@/components/auth/EmailVerificationInput';
 import { useAuthEnabled, useTurnstileEnabled } from '@/hooks/use-feature-flags';
-import { getThemeConfig } from '@/config';
+import { getThemeConfig, getContentConfig } from '@/config';
+import { parseAuthError, shouldShowSupportContact } from '@/lib/auth/errors';
 
-type AuthMode = 'login' | 'signup' | 'verify-email';
+type AuthMode = 'login' | 'signup' | 'verify-email' | 'forgot-password';
 
 function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const theme = getThemeConfig();
+  const content = getContentConfig();
   const isAuthEnabled = useAuthEnabled();
   const isTurnstileEnabled = useTurnstileEnabled();
 
@@ -34,6 +36,7 @@ function AuthPageContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showSupport, setShowSupport] = useState<boolean>(false);
 
   const redirectTo = searchParams?.get('redirectTo') || '/';
 
@@ -78,27 +81,36 @@ function AuthPageContent() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setShowSupport(false);
 
-    // Validation
-    if (!email || !password) {
-      setError('Email and password are required');
-      return;
-    }
-
-    if (mode === 'signup') {
-      if (password !== confirmPassword) {
-        setError('Passwords do not match');
+    // Validation for forgot password (only email needed)
+    if (mode === 'forgot-password') {
+      if (!email) {
+        setError('Email address is required');
+        return;
+      }
+    } else {
+      // Validation for login/signup
+      if (!email || !password) {
+        setError('Email and password are required');
         return;
       }
 
-      if (password.length < 8) {
-        setError('Password must be at least 8 characters');
-        return;
+      if (mode === 'signup') {
+        if (password !== confirmPassword) {
+          setError('Passwords do not match');
+          return;
+        }
+
+        if (password.length < 8) {
+          setError('Password must be at least 8 characters');
+          return;
+        }
       }
     }
 
-    // Check Turnstile
-    if (isTurnstileEnabled && !turnstileToken) {
+    // Check Turnstile (skip for password reset)
+    if (isTurnstileEnabled && !turnstileToken && mode !== 'forgot-password') {
       setError('Please complete the verification');
       return;
     }
@@ -124,7 +136,7 @@ function AuthPageContent() {
           // Force immediate redirect with replace to avoid back button issues
           window.location.replace(redirectTo);
         }
-      } else {
+      } else if (mode === 'signup') {
         // Signup
         const { data, error: authError } = await supabase.auth.signUp({
           email,
@@ -151,29 +163,32 @@ function AuthPageContent() {
             setSuccess('Account created! Check your email for the verification code.');
           }
         }
+      } else if (mode === 'forgot-password') {
+        // Password reset request
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        });
+
+        if (resetError) {
+          throw resetError;
+        }
+
+        setSuccess('Password reset link sent! Check your email.');
+        // Return to login after 3 seconds
+        setTimeout(() => {
+          setMode('login');
+          setSuccess(null);
+        }, 3000);
       }
     } catch (err: any) {
       console.error('Auth error:', err);
 
-      // Provide user-friendly error messages
-      let errorMessage = 'Authentication failed';
+      // Parse error with structured error handling
+      const parsedError = parseAuthError(err);
+      setError(parsedError.message);
 
-      if (err.message) {
-        // Map common error messages to user-friendly ones
-        if (err.message.includes('fetch')) {
-          errorMessage = 'Unable to connect to authentication service. Please check your connection and try again.';
-        } else if (err.message.includes('Invalid login credentials')) {
-          errorMessage = 'Invalid email or password. Please try again.';
-        } else if (err.message.includes('Email not confirmed')) {
-          errorMessage = 'Please check your email and confirm your account before logging in.';
-        } else if (err.message.includes('User already registered')) {
-          errorMessage = 'An account with this email already exists. Please login instead.';
-        } else {
-          errorMessage = err.message;
-        }
-      }
-
-      setError(errorMessage);
+      // Show support contact for unknown/network errors
+      setShowSupport(shouldShowSupportContact(err));
     } finally {
       setLoading(false);
     }
@@ -242,11 +257,13 @@ function AuthPageContent() {
               </div>
 
               <h1 className="text-3xl font-bold mb-2 bg-gradient-to-br from-foreground to-muted-foreground bg-clip-text">
-                {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+                {mode === 'login' ? 'Welcome Back' : mode === 'forgot-password' ? 'Reset Password' : 'Create Account'}
               </h1>
               <p className="text-muted-foreground text-sm">
                 {mode === 'login'
                   ? 'Login to verify nodes and customize profiles'
+                  : mode === 'forgot-password'
+                  ? 'Enter your email to receive a password reset link'
                   : 'Sign up to start verifying and customizing your nodes'
                 }
               </p>
@@ -254,9 +271,50 @@ function AuthPageContent() {
 
           {/* Alerts */}
           {error && (
-            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-destructive">{error}</p>
+            <div className="mb-6 space-y-3">
+              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+              </div>
+
+              {/* Contact Support Section */}
+              {showSupport && content.support?.enabled && (content.support.email || content.support.discord) && (
+                <div className="p-4 bg-muted/50 border border-border rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <HelpCircle className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <p className="text-sm font-medium text-foreground">Need Help?</p>
+                      <p className="text-xs text-muted-foreground">
+                        If this problem persists, contact our support team:
+                      </p>
+                      <div className="flex flex-col gap-2 mt-2">
+                        {content.support.email && (
+                          <a
+                            href={`mailto:${content.support.email}`}
+                            className="text-sm font-medium hover:underline transition-colors"
+                            style={{ color: theme.primaryColor }}
+                          >
+                            {content.support.email}
+                          </a>
+                        )}
+                        {content.support.discord && (
+                          <a
+                            href={content.support.discord}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium hover:underline transition-colors"
+                            style={{ color: theme.primaryColor }}
+                          >
+                            Join Discord Support
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -308,24 +366,26 @@ function AuthPageContent() {
               </div>
             </div>
 
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === 'signup' ? 'At least 8 characters' : 'Your password'}
-                  required
-                  className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-200 hover:border-muted-foreground"
-                />
+            {/* Password (not shown in forgot-password mode) */}
+            {mode !== 'forgot-password' && (
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={mode === 'signup' ? 'At least 8 characters' : 'Your password'}
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-200 hover:border-muted-foreground"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Confirm Password (signup only) */}
             {mode === 'signup' && (
@@ -363,17 +423,17 @@ function AuthPageContent() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || (isTurnstileEnabled && !turnstileToken)}
+              disabled={loading || (isTurnstileEnabled && !turnstileToken && mode !== 'forgot-password')}
               className="w-full py-3 text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
               style={{ backgroundColor: theme.primaryColor }}
             >
               {loading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  {mode === 'login' ? 'Logging in...' : 'Creating account...'}
+                  {mode === 'login' ? 'Logging in...' : mode === 'forgot-password' ? 'Sending reset link...' : 'Creating account...'}
                 </>
               ) : (
-                mode === 'login' ? 'Login' : 'Create Account'
+                mode === 'login' ? 'Login' : mode === 'forgot-password' ? 'Send Reset Link' : 'Create Account'
               )}
             </button>
           </form>
@@ -385,6 +445,7 @@ function AuthPageContent() {
                 setMode(mode === 'login' ? 'signup' : 'login');
                 setError(null);
                 setSuccess(null);
+                setShowSupport(false);
                 setTurnstileToken(null);
               }}
               className="text-sm text-muted-foreground hover:text-foreground transition-all duration-200 group"
@@ -413,17 +474,34 @@ function AuthPageContent() {
             </button>
           </div>
 
-            {/* Forgot Password */}
+            {/* Forgot Password / Back to Login */}
             {mode === 'login' && (
               <div className="mt-4 text-center">
                 <button
                   onClick={() => {
-                    // TODO: Implement forgot password flow
-                    alert('Password reset coming soon!');
+                    setMode('forgot-password');
+                    setError(null);
+                    setSuccess(null);
+                    setShowSupport(false);
                   }}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Forgot password?
+                </button>
+              </div>
+            )}
+            {mode === 'forgot-password' && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => {
+                    setMode('login');
+                    setError(null);
+                    setSuccess(null);
+                    setShowSupport(false);
+                  }}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Back to login
                 </button>
               </div>
             )}

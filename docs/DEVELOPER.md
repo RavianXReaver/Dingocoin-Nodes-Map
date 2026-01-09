@@ -37,16 +37,18 @@ Complete guide for developers wanting to contribute to AtlasP2P or build custom 
 git clone https://github.com/RaxTzu/AtlasP2P.git
 cd AtlasP2P
 
-# 2. First time setup (creates .env, installs deps, downloads GeoIP)
-make setup
+# 2. First time setup (creates .env, installs deps)
+make setup-docker
 
 # 3. Start development environment
 make dev
 
 # Access the application:
-# - Web App: http://localhost:4000
-# - Supabase Studio: http://localhost:4022
-# - API Gateway: http://localhost:4020
+# Access points (ports configurable via .env):
+# - Web App: http://localhost:${WEB_PORT:-4000}
+# - Supabase Studio: http://localhost:${STUDIO_PORT:-4022}
+# - API Gateway: http://localhost:${KONG_PORT:-4020}
+# - Inbucket (email): http://localhost:${INBUCKET_WEB_PORT:-4023}
 ```
 
 ---
@@ -109,14 +111,16 @@ AtlasP2P/
 ### Starting Development
 
 ```bash
-# Start all services (database, web app)
+# Start all services (database, web app, crawler)
 make dev
 
-# In another terminal, start the crawler
-make crawler-dev
-
 # View logs
-make dev-logs
+make logs
+
+# View specific service logs
+make logs-web      # Web app only
+make logs-crawler  # Crawler only
+make logs-db       # Database only
 ```
 
 ### Making Changes
@@ -174,16 +178,33 @@ pnpm build
 
 ### Port Configuration
 
-All services use ports **4000-4100**:
+All services use ports **4000-4100** (configurable via `.env`):
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Web App | 4000 | Development server |
-| Testing | 4001 | Test server |
-| Kong API | 4020 | API Gateway |
-| PostgreSQL | 4021 | Database |
-| Studio | 4022 | Supabase admin UI |
-| Inbucket | 4023 | Email testing |
+| Service | Default Port | Env Variable | Description |
+|---------|--------------|--------------|-------------|
+| Web App | 4000 | `WEB_PORT` | Development server |
+| Testing | 4001 | N/A | Test server |
+| Kong API | 4020 | `KONG_PORT` | API Gateway |
+| PostgreSQL | 4021 | `DB_PORT` | Database |
+| Studio | 4022 | `STUDIO_PORT` | Supabase admin UI |
+| Inbucket Web | 4023 | `INBUCKET_WEB_PORT` | Email testing UI |
+| Inbucket SMTP | 4024 | `INBUCKET_SMTP_PORT` | Email SMTP |
+
+**Port Configuration:**
+All ports can be customized in `.env` to avoid conflicts or run multiple instances:
+
+```bash
+# Example: Run on alternative ports
+WEB_PORT=5000
+KONG_PORT=5020
+DB_PORT=5021
+STUDIO_PORT=5022
+```
+
+This makes it easy to:
+- Run multiple AtlasP2P instances (different chains)
+- Avoid conflicts with existing services
+- Test different configurations simultaneously
 
 ---
 
@@ -200,6 +221,9 @@ make typecheck
 
 # Linting only
 make lint
+
+# Format code
+make format
 ```
 
 ### Writing Tests
@@ -311,7 +335,9 @@ test: add tests for node profiles
 
 3. Apply migration:
    ```bash
-   make db-reset  # Applies all migrations
+   make migrate  # Run all migrations
+   # OR
+   make migrate-reset  # Reset and reapply (DESTROYS DATA!)
    ```
 
 ### Adding a New Chain Configuration
@@ -336,18 +362,18 @@ test: add tests for node profiles
 
 ### Working with the Crawler
 
-**Run crawler manually:**
+**Run crawler:**
 ```bash
-# One-time crawl
-make crawler-dev
+# Start crawler in Docker (recommended)
+make crawler
 
-# Continuous crawling (in Docker)
-docker compose --profile crawler up -d
+# Run crawler locally (outside Docker)
+make crawler-local
 ```
 
 **Crawler logs:**
 ```bash
-docker logs -f atlasp2p-crawler
+make logs-crawler
 ```
 
 **Modify crawler behavior:**

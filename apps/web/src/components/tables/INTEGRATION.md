@@ -275,8 +275,8 @@ import { CountryTable } from '@/components/tables/CountryTable';
 **Solution**: Check Supabase connection and database:
 
 ```bash
-# Check if nodes exist
-make db-studio
+# Open Supabase Studio in browser
+# http://localhost:4022
 # Navigate to nodes_public table
 ```
 

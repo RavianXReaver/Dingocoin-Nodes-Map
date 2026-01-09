@@ -32,8 +32,8 @@ services:
       - ACME_EMAIL=${ACME_EMAIL:-admin@localhost}
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - atlasp2p_caddy-data:/data
+      - atlasp2p_caddy-config:/config
     depends_on:
       - web
       - kong
@@ -72,15 +72,13 @@ services:
     container_name: atlasp2p-crawler
     env_file:
       - .env
-    environment:
-      # Production-specific overrides
-      - NEXT_PUBLIC_SUPABASE_URL=https://${DOMAIN:-localhost}/supabase
     volumes:
-      - ./data/geoip:/app/data/geoip:ro
+      - geoip-data:/app/data/geoip
     restart: unless-stopped
     profiles:
       - crawler
 
 volumes:
-  caddy-data:
-  caddy-config:
+  geoip-data:
+  atlasp2p_caddy-data:
+  atlasp2p_caddy-config:

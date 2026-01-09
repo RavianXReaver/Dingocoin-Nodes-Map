@@ -1,3 +1,8 @@
+---
+layout: default
+title: API Quick Reference - AtlasP2P
+---
+
 # Dingocoin Nodes Map - API Quick Reference
 
 ## Endpoints Overview

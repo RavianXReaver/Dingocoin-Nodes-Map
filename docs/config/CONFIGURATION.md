@@ -1,3 +1,8 @@
+---
+layout: default
+title: Configuration Guide - AtlasP2P
+---
+
 # Configuration Guide
 
 This guide explains every configuration option in `/config/project.config.yaml` - the **ONLY file** you need to edit to customize your Nodes Map.
@@ -775,6 +780,9 @@ While most configuration is in YAML, some sensitive values **must** remain in en
 ### Required `.env.local` Variables
 
 ```bash
+# Docker Compose Configuration
+COMPOSE_PROJECT_NAME=atlasp2p  # Controls container/image naming
+
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key

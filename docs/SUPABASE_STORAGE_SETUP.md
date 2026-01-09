@@ -1,3 +1,8 @@
+---
+layout: default
+title: Supabase Storage - AtlasP2P
+---
+
 # Supabase Storage Setup (Production)
 
 ## Overview

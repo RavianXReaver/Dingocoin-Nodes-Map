@@ -660,7 +660,7 @@ export default function MapLibreMap({ viewMode, onNodeClick }: MapLibreMapProps)
                 className={`px-4 py-2.5 text-sm font-medium rounded-md transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus-visible:ring-2 focus-visible:ring-offset-2 flex items-center gap-2 ${
                   tileStyle === style.id
                     ? 'bg-primary text-white shadow-md font-semibold'
-                    : 'bg-transparent text-foreground/80 hover:bg-muted'
+                    : 'bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
                 {IconComponent && <IconComponent className="h-4 w-4" />}
@@ -810,26 +810,33 @@ export default function MapLibreMap({ viewMode, onNodeClick }: MapLibreMapProps)
                 }}
                 style={{
                   position: 'absolute',
-                  top: -20,
-                  left: -20,
-                  width: 40,
-                  height: 40,
+                  top: -22,
+                  left: -22,
+                  width: 44,
+                  height: 44,
                   borderRadius: '50%',
                   backgroundColor: theme.primaryColor,
-                  opacity: 0.9,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                  opacity: 0.95,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                  border: '2px solid white',
                   zIndex: 2,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  transition: 'opacity 0.2s',
+                  transition: 'all 0.2s',
                 }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '0.9'; }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.opacity = '1';
+                  (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.opacity = '0.95';
+                  (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
+                }}
                 title="Click to collapse"
               >
-                <span style={{ color: 'white', fontSize: '18px', fontWeight: 'bold' }}>×</span>
+                <span style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', lineHeight: 1 }}>×</span>
               </div>
 
               {/* Spider nodes - absolutely positioned */}
@@ -915,26 +922,33 @@ export default function MapLibreMap({ viewMode, onNodeClick }: MapLibreMapProps)
                   }}
                   style={{
                     position: 'absolute',
-                    top: -20,
-                    left: -20,
-                    width: 40,
-                    height: 40,
+                    top: -22,
+                    left: -22,
+                    width: 44,
+                    height: 44,
                     borderRadius: '50%',
                     backgroundColor: theme.primaryColor,
-                    opacity: 0.9,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                    opacity: 0.95,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                    border: '2px solid white',
                     zIndex: 2,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'opacity 0.2s',
+                    transition: 'all 0.2s',
                   }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '0.9'; }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.opacity = '1';
+                    (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.opacity = '0.95';
+                    (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
+                  }}
                   title="Click to collapse"
                 >
-                  <span style={{ color: 'white', fontSize: '18px', fontWeight: 'bold' }}>×</span>
+                  <span style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', lineHeight: 1 }}>×</span>
                 </div>
 
                 {/* Group clusters arranged in circle */}

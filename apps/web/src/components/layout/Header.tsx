@@ -75,7 +75,7 @@ export function Header() {
                 className={`relative flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md group ${
                   active
                     ? 'text-foreground bg-muted/60'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 }`}
               >
                 <Icon className="h-4 w-4" />

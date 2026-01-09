@@ -11,8 +11,8 @@
   --color-background: #ffffff;
   --color-foreground: #171717;
   --color-muted: #f5f5f5;
-  --color-muted-foreground: #737373;
-  --color-border: #e5e5e5;
+  --color-muted-foreground: #525252; /* Improved from #737373 for better contrast (7.0:1 ratio) */
+  --color-border: #d4d4d4; /* Slightly darker for better visibility */
 
   --color-card: #ffffff;
   --color-card-foreground: #171717;
@@ -37,7 +37,7 @@
   --color-foreground: #fafafa;
   --color-muted: #262626;
   --color-muted-foreground: #a3a3a3;
-  --color-border: #404040;
+  --color-border: #525252; /* Improved from #404040 for better visibility */
   --color-card: #171717;
   --color-card-foreground: #fafafa;
 }
@@ -140,8 +140,8 @@ body {
 .marker-cluster-large {
   background: radial-gradient(
     circle,
-    rgba(255, 140, 0, 0.5) 0%,
-    rgba(255, 69, 0, 0.9) 100%
+    rgba(255, 140, 0, 0.6) 0%,
+    rgba(255, 69, 0, 1) 100%
   );
   box-shadow: 0 0 30px rgba(255, 140, 0, 0.8), 0 6px 16px rgba(0, 0, 0, 0.5);
   animation: pulse-cluster 2s ease-in-out infinite;
@@ -192,6 +192,17 @@ body {
   50% {
     transform: scale(1.05);
     opacity: 0.9;
+  }
+}
+
+/* Disable animations for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .marker-cluster-large {
+    animation: none !important;
+  }
+  .marker-diamond,
+  .marker-gold {
+    animation: none !important;
   }
 }
 

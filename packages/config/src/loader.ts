@@ -28,9 +28,23 @@ export function initializeConfig(config: ProjectConfig) {
 
 /**
  * Get the full project configuration
+ * Auto-loads config if not initialized (handles Next.js context isolation)
  */
 export function getProjectConfig(): ProjectConfig {
   if (!_projectConfig) {
+    // Auto-load in server context (Next.js 16 context isolation fix)
+    if (typeof window === 'undefined') {
+      try {
+        // Dynamic import to avoid bundling server code in client
+        const { autoLoadConfig } = require('./loader.server');
+        return autoLoadConfig();
+      } catch (error) {
+        throw new Error(
+          'Project configuration not initialized and auto-load failed. ' +
+          'This should not happen - check instrumentation.ts. Error: ' + error
+        );
+      }
+    }
     throw new Error(
       'Project configuration not initialized. Call initializeConfig() with the loaded config first.'
     );

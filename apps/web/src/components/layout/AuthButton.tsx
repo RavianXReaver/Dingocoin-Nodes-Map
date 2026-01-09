@@ -152,11 +152,11 @@ export function AuthButton() {
                 <Link
                   href="/manage"
                   onClick={() => setShowMenu(false)}
-                  className="flex items-center gap-3 px-4 py-2 text-sm font-medium hover:bg-muted/60 transition-colors"
-                  style={{ color: theme.primaryColor }}
+                  className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/60 transition-colors rounded-md"
+                  style={{ backgroundColor: `${theme.primaryColor}25` }}
                 >
-                  <Shield className="h-4 w-4" />
-                  Admin Dashboard
+                  <Shield className="h-4 w-4" style={{ color: theme.primaryColor }} />
+                  <span>Admin Dashboard</span>
                 </Link>
               )}
             </div>

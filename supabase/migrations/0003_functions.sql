@@ -80,10 +80,10 @@ SELECT n.id, n.address, COALESCE(p.display_name, n.address) as name, p.avatar_ur
 FROM nodes n LEFT JOIN node_profiles p ON n.id = p.node_id WHERE n.status = 'up' ORDER BY n.pix_score DESC NULLS LAST;
 
 -- Helper Functions
-CREATE OR REPLACE FUNCTION save_network_snapshot() RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION save_network_snapshot(p_chain TEXT DEFAULT NULL) RETURNS VOID AS $$
 BEGIN
     INSERT INTO network_history (snapshot_time, chain, total_nodes, online_nodes, countries, avg_uptime, avg_latency, avg_pix_score, diamond_nodes, gold_nodes, silver_nodes, bronze_nodes, most_common_version)
-    SELECT NOW(), chain, total_nodes, online_nodes, countries, avg_uptime, avg_latency, avg_pix_score, diamond_nodes, gold_nodes, silver_nodes, bronze_nodes, (SELECT client_version FROM nodes WHERE client_version IS NOT NULL GROUP BY client_version ORDER BY COUNT(*) DESC LIMIT 1) FROM network_stats;
+    SELECT NOW(), chain, total_nodes, online_nodes, countries, avg_uptime, avg_latency, avg_pix_score, diamond_nodes, gold_nodes, silver_nodes, bronze_nodes, (SELECT client_version FROM nodes WHERE client_version IS NOT NULL AND (p_chain IS NULL OR chain = p_chain) GROUP BY client_version ORDER BY COUNT(*) DESC LIMIT 1) FROM network_stats WHERE p_chain IS NULL OR chain = p_chain;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -93,6 +93,27 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Triggers
 CREATE OR REPLACE FUNCTION update_updated_at() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = NOW(); RETURN NEW; END; $$ LANGUAGE plpgsql;
+
+-- Track status and tier changes for alerts
+CREATE OR REPLACE FUNCTION track_node_changes() RETURNS TRIGGER AS $$
+BEGIN
+    -- Track status changes (for downtime calculations)
+    IF NEW.status IS DISTINCT FROM OLD.status THEN
+        NEW.previous_status = OLD.status;
+        NEW.previous_status_changed_at = NOW();
+    END IF;
+
+    -- Track tier changes (for tier change alerts)
+    IF NEW.tier IS DISTINCT FROM OLD.tier THEN
+        NEW.previous_tier = OLD.tier;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS track_node_changes_trigger ON nodes;
+CREATE TRIGGER track_node_changes_trigger BEFORE UPDATE ON nodes FOR EACH ROW EXECUTE FUNCTION track_node_changes();
 
 DROP TRIGGER IF EXISTS update_nodes_updated_at ON nodes;
 CREATE TRIGGER update_nodes_updated_at BEFORE UPDATE ON nodes FOR EACH ROW EXECUTE FUNCTION update_updated_at();

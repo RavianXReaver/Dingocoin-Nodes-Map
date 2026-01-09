@@ -13,9 +13,10 @@ import asyncio
 import socket
 import time
 import re
+import os
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Set, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import structlog
 import aiohttp
 
@@ -48,8 +49,8 @@ class NodeInfo:
     user_agent: Optional[str] = None
     latency_ms: Optional[float] = None
     status: str = "pending"
-    first_seen: datetime = field(default_factory=datetime.utcnow)
-    last_seen: datetime = field(default_factory=datetime.utcnow)
+    first_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     times_seen: int = 1
     peers: List[NetAddr] = field(default_factory=list)
 
@@ -103,13 +104,17 @@ class Crawler:
         # Dynamic version from database (fetched from web API)
         # Falls back to chain_config.current_version if API unavailable
         self._dynamic_current_version: Optional[str] = None
+
+        # Get web port from environment (defaults to 4000)
+        web_port = os.getenv('WEB_PORT', '4000')
+
         self._web_api_url = config.supabase_url.replace('/rest/v1', '').rstrip('/')
         # Convert Supabase URL to web app URL (typically on same host)
         if '127.0.0.1:4020' in self._web_api_url or 'localhost:4020' in self._web_api_url:
-            self._web_api_url = 'http://localhost:4000'
+            self._web_api_url = f'http://localhost:{web_port}'
         elif 'supabase' in self._web_api_url:
-            # Docker internal - web app is on atlasp2p-web:4000
-            self._web_api_url = 'http://atlasp2p-web:4000'
+            # Docker internal - web app is on atlasp2p-web with configured port
+            self._web_api_url = f'http://atlasp2p-web:{web_port}'
 
     async def _fetch_current_version(self) -> str:
         """
@@ -299,16 +304,58 @@ class Crawler:
                 writer.write(version_msg)
                 await writer.drain()
 
-                # Read response
-                data = await asyncio.wait_for(
-                    reader.read(65536),
-                    timeout=timeout,
-                )
+                # Read response - may come in multiple chunks!
+                # Keep reading until we have a complete VERSION message
+                data = b""
+                read_timeout = timeout
+                start_read = time.time()
+
+                while (time.time() - start_read) < read_timeout:
+                    try:
+                        chunk = await asyncio.wait_for(
+                            reader.read(65536),
+                            timeout=2,  # Short timeout per chunk
+                        )
+
+                        if not chunk:
+                            # Connection closed
+                            logger.debug("Connection closed while reading", ip=ip, port=port, bytes_received=len(data))
+                            break
+
+                        data += chunk
+                        logger.debug("Received chunk", ip=ip, port=port, chunk_size=len(chunk), total_size=len(data))
+
+                        # Check if we have at least a header
+                        if len(data) >= 24:
+                            # Try to determine if we have a complete message
+                            import struct
+                            length = struct.unpack("<I", data[16:20])[0]
+                            needed = 24 + length
+                            logger.debug("Message size check", ip=ip, port=port, have=len(data), need=needed)
+
+                            if len(data) >= needed:
+                                # Have at least one complete message
+                                logger.debug("Have complete message", ip=ip, port=port)
+                                break
+
+                    except asyncio.TimeoutError:
+                        # Short read timeout - check if we have enough data
+                        logger.debug("Read timeout", ip=ip, port=port, bytes_received=len(data))
+                        if len(data) >= 24:
+                            import struct
+                            length = struct.unpack("<I", data[16:20])[0]
+                            needed = 24 + length
+                            if len(data) >= needed:
+                                break
+                        # No complete message yet, continue if overall timeout not exceeded
+                        continue
 
                 if not data:
                     # TCP connected but no response - mark as reachable
                     logger.debug("TCP connected but no handshake response", ip=ip, port=port)
                     return NodeInfo(ip=ip, port=port, status="reachable", latency_ms=tcp_latency)
+
+                logger.debug("Starting message parse", ip=ip, port=port, data_size=len(data), data_hex=data[:50].hex())
 
                 # Parse version response
                 remaining = data
@@ -481,7 +528,7 @@ class Crawler:
                         existing.peers = node_info.peers
                     existing.latency_ms = node_info.latency_ms
                     existing.status = node_info.status  # Preserve status from handshake result
-                    existing.last_seen = datetime.utcnow()
+                    existing.last_seen = datetime.now(timezone.utc)
                     existing.times_seen += 1
                 else:
                     self.nodes[key] = node_info
@@ -502,7 +549,7 @@ class Crawler:
                 if key in self.nodes:
                     # Already exists - mark as down
                     self.nodes[key].status = "down"
-                    self.nodes[key].last_seen = datetime.utcnow()
+                    self.nodes[key].last_seen = datetime.now(timezone.utc)
                 else:
                     # NEW: Add unreachable node to database
                     # This matches Bitnodes methodology - track all discovered peers
@@ -517,15 +564,15 @@ class Crawler:
                         start_height=None,
                         user_agent=None,
                         peers=[],
-                        last_seen=datetime.utcnow(),
-                        first_seen=datetime.utcnow(),
+                        last_seen=datetime.now(timezone.utc),
+                        first_seen=datetime.now(timezone.utc),
                         times_seen=0,
                     )
                     self.nodes[key] = node_info_unreachable
                     self.stats["nodes_discovered"] += 1
 
     def _is_valid_ip(self, ip: str) -> bool:
-        """Check if an IP is valid and not private."""
+        """Check if an IP is valid and not private (unless in development mode)."""
         try:
             # IPv6 support - protocol.py now uses inet_pton which supports both IPv4 and IPv6
             if ":" in ip:
@@ -535,25 +582,24 @@ class Crawler:
                 return True  # Accept all other IPv6
 
             # IPv4 validation
-            # Skip link-local and loopback
-            if ip.startswith("127.") or ip.startswith("192.168.") or ip.startswith("10."):
-                return False
-
             parts = ip.split(".")
             if len(parts) != 4:
                 return False
 
             nums = [int(p) for p in parts]
 
+            # Allow private IPs in development mode (for local testing)
+            is_development = os.getenv("NODE_ENV", "").lower() == "development"
+
             # Private ranges
             if nums[0] == 10:
-                return False
+                return is_development
             if nums[0] == 172 and 16 <= nums[1] <= 31:
-                return False
+                return is_development
             if nums[0] == 192 and nums[1] == 168:
-                return False
+                return is_development
             if nums[0] == 127:
-                return False
+                return is_development
             if nums[0] == 0:
                 return False
 
@@ -692,7 +738,7 @@ class Crawler:
                         else:
                             last_seen_dt = last_seen
 
-                        minutes_since = (datetime.utcnow() - last_seen_dt.replace(tzinfo=None)).total_seconds() / 60
+                        minutes_since = (datetime.now(timezone.utc) - last_seen_dt.replace(tzinfo=None)).total_seconds() / 60
 
                         # Always re-check "up" and "reachable" nodes to detect outages quickly
                         # These nodes should be checked every crawl pass
@@ -947,7 +993,7 @@ class Crawler:
     async def run_single_pass(self) -> None:
         """Run a single crawl pass."""
         logger.info("Starting crawl pass", chain=self.config.chain)
-        self.stats["started_at"] = datetime.utcnow()
+        self.stats["started_at"] = datetime.now(timezone.utc)
 
         # Fetch current version from web API (database overrides)
         await self._fetch_current_version()
@@ -1035,7 +1081,7 @@ class Crawler:
                 logger.error("Crawl iteration failed", iteration=iteration, error=str(e))
 
             # Wait before next iteration
-            next_run = datetime.utcnow() + timedelta(minutes=self.config.interval_minutes)
+            next_run = datetime.now(timezone.utc) + timedelta(minutes=self.config.interval_minutes)
             logger.info(
                 "Waiting for next iteration",
                 minutes=self.config.interval_minutes,
@@ -1155,14 +1201,17 @@ class Crawler:
             return
 
         try:
+            # Get web port from environment (defaults to 4000)
+            web_port = os.getenv('WEB_PORT', '4000')
+
             # Build the API URL - handle both internal and external URLs
             base_url = self.config.supabase_url
             if "kong:8000" in base_url:
                 # Internal docker URL, use the web service instead
-                api_url = "http://web:3000/api/alerts/process"
+                api_url = f"http://web:{web_port}/api/alerts/process"
             elif "localhost" in base_url or "127.0.0.1" in base_url:
                 # Local development - use localhost web port
-                api_url = "http://localhost:4000/api/alerts/process"
+                api_url = f"http://localhost:{web_port}/api/alerts/process"
             else:
                 # Production - derive from supabase URL
                 api_url = base_url.replace("/supabase", "") + "/api/alerts/process"

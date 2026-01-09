@@ -1,3 +1,8 @@
+---
+layout: default
+title: API Reference - AtlasP2P
+---
+
 # Dingocoin Nodes Map - JSON API Documentation
 
 This document describes the JSON API endpoints for programmatic access to node data. The API structure matches [Bitnodes.io](https://bitnodes.io) for compatibility while adding extended features specific to the Dingocoin network.

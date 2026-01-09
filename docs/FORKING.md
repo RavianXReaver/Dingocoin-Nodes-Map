@@ -1,3 +1,8 @@
+---
+layout: default
+title: Forking Guide - AtlasP2P
+---
+
 # Forking Guide: Create Your Own Blockchain Nodes Map
 
 This guide walks you through forking this project to create a nodes map for **any** cryptocurrency blockchain.
@@ -174,21 +179,21 @@ MAXMIND_ACCOUNT_ID=123456
 MAXMIND_LICENSE_KEY=xxxxx
 ```
 
-### Step 5: Build and Run
+### Step 5: Start Development
 
 ```bash
-# Build the project
-pnpm build
-
-# Start local Supabase (includes PostgreSQL)
-make up
-
-# Download GeoIP databases
-make geoip-download
-
-# Start the web app
+# Start the full development stack
 make dev
 # Opens at http://localhost:4000
+
+# This starts:
+# - PostgreSQL database
+# - Supabase services (Auth, API, Studio)
+# - Next.js web app (hot reload)
+# - Crawler service
+
+# Download GeoIP databases (for geographic data)
+make geoip
 ```
 
 **That's it!** You now have a working nodes map. Continue reading for crawler setup and deployment.
@@ -208,16 +213,16 @@ make dev
    - `anon` `public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` `secret` key → `SUPABASE_SERVICE_ROLE_KEY`
 4. Go to **SQL Editor** and run migrations:
-   - Copy contents of `/supabase/migrations/00000_supabase_core.sql` and run
-   - Copy contents of `/supabase/migrations/00000_supabase_schemas.sql` and run
-   - Copy contents of `/supabase/migrations/00001_supabase_auth.sql` and run
-   - Copy contents of `/supabase/migrations/00002_initial_schema.sql` and run
+   - Copy contents of `/supabase/migrations/0001_foundation.sql` and run
+   - Copy contents of `/supabase/migrations/0002_schema.sql` and run
+   - Copy contents of `/supabase/migrations/0003_functions.sql` and run
+   - Copy contents of `/supabase/migrations/0004_policies.sql` and run
 
 #### Option B: Local Supabase (Docker)
 
 ```bash
-# Start local Supabase stack
-make up
+# Start full development stack (includes Supabase)
+make dev
 
 # Migrations run automatically on first start
 # Access Supabase Studio at http://localhost:4022
@@ -244,7 +249,7 @@ GeoIP databases convert IP addresses to geographic locations.
    ```
 6. Download databases:
    ```bash
-   make geoip-download
+   make geoip
    ```
 
 This downloads `GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb` to `/data/geoip/`.
@@ -613,23 +618,25 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-key-for-build
 
 **Deploy crawler separately** (see below)
 
-### Option 2: Docker Compose (Full Stack)
+### Option 2: Docker Self-Hosted (Full Stack)
 
 ```bash
-# Build all containers
-docker compose build
-
-# Start everything
-docker compose --profile crawler up -d
+# Start production (self-hosted, with SSL)
+make prod-docker
 
 # View logs
-docker compose logs -f
+make prod-logs
 ```
 
 Services:
-- Web app: http://localhost:4000
-- Supabase Studio: http://localhost:4022
-- PostgreSQL: localhost:4021
+- Web app: https://your-domain.com
+- PostgreSQL: Internal only
+
+Or for development:
+```bash
+make dev         # Starts full stack
+make logs        # View logs
+```
 
 ### Option 3: VPS (Production)
 
@@ -851,7 +858,7 @@ BITCOIN_CONFIG = ChainConfig(
 - [ ] Test crawler locally
 
 **Development:**
-- [ ] Build and run web app (`pnpm build && make dev`)
+- [ ] Run `make dev` to start development environment
 - [ ] Verify nodes appear on map
 
 **CI/CD Setup:**

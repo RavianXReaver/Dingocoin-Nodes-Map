@@ -4,10 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getClient } from '@/lib/supabase/client';
 import type { VersionDistribution } from '@atlasp2p/types';
 
-import { getProjectConfig } from '@/config';
-
 export function useVersionStats() {
-  const chain = getProjectConfig().chain;
   const [versions, setVersions] = useState<VersionDistribution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,34 +16,24 @@ export function useVersionStats() {
       setIsLoading(true);
       setError(null);
 
-      const { data: nodes, error: queryError } = await supabase
-        .from('nodes_public')
-        .select('version, status')
-        .eq('chain', chain);
+      // Use the version_distribution view which is already aggregated in the database
+      const { data, error: queryError } = await supabase
+        .from('version_distribution')
+        .select('*')
+        .order('count', { ascending: false })
+        .limit(10); // Top 10 versions
 
       if (queryError) throw queryError;
 
-      // Aggregate versions
-      const versionCounts = new Map<string, number>();
-      const total = nodes?.length || 0;
+      const transformedVersions: VersionDistribution[] = (data || []).map((v) => ({
+        version: v.version || 'Unknown',
+        count: v.count || 0,
+        percentage: v.percentage || 0,
+        onlineCount: v.online_count || 0,
+        isCurrentVersion: v.is_current_version || false,
+      }));
 
-      nodes?.forEach((node) => {
-        const version = node.version || 'Unknown';
-        versionCounts.set(version, (versionCounts.get(version) || 0) + 1);
-      });
-
-      // Convert to array and sort by count
-      const versionStats: VersionDistribution[] = Array.from(
-        versionCounts.entries()
-      )
-        .map(([version, count]) => ({
-          version,
-          count,
-          percentage: total > 0 ? (count / total) * 100 : 0,
-        }))
-        .sort((a, b) => b.count - a.count);
-
-      setVersions(versionStats);
+      setVersions(transformedVersions);
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error fetching version stats:', err);
@@ -74,3 +61,4 @@ export function useVersionStats() {
     refetch: fetchVersionStats,
   };
 }
+

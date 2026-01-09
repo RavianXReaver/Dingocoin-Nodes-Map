@@ -86,11 +86,17 @@ export const ChainConfigSchema = z.object({
   messagePrefix: z.string().min(1, 'Message prefix is required').optional(),
   addressPrefix: z.string().min(1, 'Address prefix is required').optional(),
   pubKeyHash: z.string().regex(/^[0-9a-fA-F]+$/, 'pubKeyHash must be a hex string').optional(),
-  dnsSeeds: z.array(z.string().min(1, 'DNS seed cannot be empty')).min(1, 'At least one DNS seed is required'),
+  dnsSeeds: z.array(z.string().min(1, 'DNS seed cannot be empty')),
   seedNodes: z.array(z.string().regex(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|\[[0-9a-fA-F:]+\]):\d+$/, 'Seed node must be in IP:PORT format (IPv4: 1.2.3.4:port or IPv6: [::1]:port)')),
   magicBytes: z.string().regex(/^[0-9a-fA-F]{8}$/, 'Magic bytes must be 8 hex characters'),
   userAgentPatterns: z.array(z.string().min(1, 'User agent pattern cannot be empty')).min(1, 'At least one user agent pattern is required'),
-});
+}).refine(
+  (data) => data.dnsSeeds.length > 0 || data.seedNodes.length > 0,
+  {
+    message: 'At least one DNS seed or seed node is required. Either dnsSeeds or seedNodes must have at least one entry.',
+    path: ['dnsSeeds']
+  }
+);
 
 // ===========================================
 // THEME CONFIGURATION
@@ -154,6 +160,18 @@ export const SocialLinkSchema = z.object({
   icon: SocialIconSchema,
 });
 
+export const SupportContactSchema = z.object({
+  enabled: z.boolean(),
+  email: EmailSchema.optional(),
+  discord: URLSchema.optional(),
+}).refine(
+  (data) => !data.enabled || data.email || data.discord,
+  {
+    message: 'At least one contact method (email or discord) must be provided when support is enabled',
+    path: ['email']
+  }
+);
+
 export const ContentConfigSchema = z.object({
   siteName: z.string().min(1, 'Site name is required'),
   siteDescription: z.string().min(1, 'Site description is required'),
@@ -163,6 +181,7 @@ export const ContentConfigSchema = z.object({
   social: z.array(SocialLinkSchema),
   copyrightText: z.string().optional(),
   githubRepoUrl: URLSchema.optional(),
+  support: SupportContactSchema.optional(),
 });
 
 // ===========================================

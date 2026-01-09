@@ -1,3 +1,8 @@
+---
+layout: default
+title: Supabase Setup - AtlasP2P
+---
+
 # Supabase Cloud Setup - Complete Guide
 
 ## Step 1: Get Your Supabase Project Info
@@ -245,12 +250,11 @@ SMTP_PASS=your-sendgrid-key
 # Pull latest code
 git pull origin main
 
-# Start production
-make prod
+# Start production (cloud Supabase + Docker app)
+make prod-cloud
 
 # Check logs
-docker logs atlasp2p-web
-docker logs atlasp2p-crawler
+make prod-logs
 ```
 
 ---
@@ -376,17 +380,18 @@ USING (true);  -- BAD!
 # Development
 make dev
 
-# Production
-make prod
+# Production (cloud Supabase + Docker app)
+make prod-cloud
 
 # Check logs
-docker logs atlasp2p-web
-docker logs atlasp2p-crawler
+make logs           # All logs
+make logs-web       # Web app only
+make logs-crawler   # Crawler only
 
 # Restart services
-docker restart atlasp2p-web
+make restart
 
-# Database backup
+# Database backup (Supabase CLI)
 supabase db dump -f backup.sql
 ```
 

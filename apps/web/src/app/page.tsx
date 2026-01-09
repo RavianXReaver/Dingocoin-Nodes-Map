@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { Globe, Map, List, Filter, BarChart3 } from 'lucide-react';
 import { StatsPanel } from '@/components/stats/StatsPanel';
 import { GrowthMetrics } from '@/components/stats/GrowthMetrics';
@@ -13,8 +13,16 @@ import { getChainConfig, getThemeConfig } from '@/config';
 import { useNodes } from '@/hooks/useNodes';
 import type { NodeWithProfile } from '@atlasp2p/types';
 
-// Dynamic import for MapLibre map (handles both 2D and 3D)
+// Dynamic import for MapLibre map (handles both 2D and 3D) - lazy loaded for better performance
 const MapLibreMap = dynamic(() => import('@/components/map/MapLibreMap'), {
+  loading: () => (
+    <div className="h-full w-full flex items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
+        <p className="text-sm text-muted-foreground">Loading map...</p>
+      </div>
+    </div>
+  ),
   ssr: false,
 });
 
@@ -27,7 +35,10 @@ export default function HomePage() {
   const [isClient, setIsClient] = useState(false);
   const [isStatsPanelMinimized, setIsStatsPanelMinimized] = useState(false); // Default: expanded on desktop, minimized on mobile
 
-  const { nodes } = useNodes();
+  const { nodes, isLoading: nodesLoading } = useNodes();
+
+  // Memoize nodes array to prevent unnecessary re-renders
+  const memoizedNodes = useMemo(() => nodes, [nodes]);
   const [selectedNode, setSelectedNode] = useState<NodeWithProfile | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -183,12 +194,14 @@ export default function HomePage() {
           >
             <List className="h-4 w-4" />
             <span className="text-sm font-medium hidden sm:inline">Nodes</span>
-            <span
-              className="hidden sm:inline text-xs text-white px-1.5 py-0.5 rounded-full font-semibold"
-              style={{ backgroundColor: theme.primaryColor }}
-            >
-              {nodes.length}
-            </span>
+            {!nodesLoading && (
+              <span
+                className="hidden sm:inline text-xs text-white px-1.5 py-0.5 rounded-full font-semibold"
+                style={{ backgroundColor: theme.primaryColor }}
+              >
+                {memoizedNodes.length}
+              </span>
+            )}
           </button>
 
           {/* Map/Globe Toggle */}
@@ -249,7 +262,7 @@ export default function HomePage() {
 
       {/* Node List Sidebar */}
       <NodeListSidebar
-        nodes={nodes}
+        nodes={memoizedNodes}
         isOpen={isSidebarOpen}
         onClose={handleCloseSidebar}
         onNodeClick={(node) => {

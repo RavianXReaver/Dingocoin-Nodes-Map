@@ -2,8 +2,22 @@
 # ATLASP2P NODES MAP - MAKEFILE
 # ===========================================
 
-.PHONY: help setup dev prod build up down logs clean migrate
+.PHONY: help dev down down-volumes logs ps restart shell \
+        setup-docker setup-cloud setup-fork \
+        docker-dev docker-down docker-logs \
+        cloud-dev cloud-down cloud-logs \
+        prod-docker prod-cloud prod-down prod-logs prod-restart \
+        docker-clean config-reload config-check \
+        migrate migrate-file migrate-create migrate-reset \
+        db-shell db-backup db-restore \
+        crawler crawler-logs crawler-local geoip \
+        logs-web logs-db logs-crawler logs-auth \
+        build-images build-web build-crawler rebuild \
+        lint typecheck test format build \
+        clean clean-cache clean-volumes clean-all reset \
+        sync-upstream check status
 
+# Colors
 CYAN := \033[36m
 GREEN := \033[32m
 YELLOW := \033[33m
@@ -12,12 +26,13 @@ RESET := \033[0m
 
 .DEFAULT_GOAL := help
 
-# Compose file combinations
+# ===========================================
+# COMPOSE FILE COMBINATIONS
+# ===========================================
 COMPOSE_DOCKER := -f docker-compose.yml -f docker-compose.dev.yml
-COMPOSE_CLOUD := -f docker-compose.cloud.yml
+COMPOSE_CLOUD := -f docker-compose.cloud.yml -f docker-compose.cloud-dev.yml
 COMPOSE_PROD_DOCKER := -f docker-compose.yml -f docker-compose.prod.yml
 COMPOSE_PROD_CLOUD := -f docker-compose.cloud.yml -f docker-compose.cloud-prod.yml
-
 
 # ===========================================
 # HELP
@@ -31,41 +46,85 @@ help: ## Show this help
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-15s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "$(YELLOW)🐳 Local Docker (Full Stack):$(RESET)"
-	@echo "  1. make setup-docker   # Setup for local Supabase"
-	@echo "  2. make docker-dev     # Start everything in Docker"
+	@echo "$(YELLOW)Quick Start:$(RESET)"
+	@echo "  make setup-fork && make dev"
 	@echo ""
-	@echo "$(YELLOW)☁️  Cloud Supabase (Managed DB):$(RESET)"
-	@echo "  1. make setup-cloud    # Setup for Supabase Cloud"
-	@echo "  2. make cloud-dev      # Start web + crawler only"
+	@echo "$(YELLOW)Common Workflows:$(RESET)"
+	@echo "  make dev          Start development"
+	@echo "  make logs         View all logs"
+	@echo "  make rebuild      Rebuild images + restart"
+	@echo "  make down         Stop everything"
 	@echo ""
-	@echo "$(YELLOW)🚀 Production:$(RESET)"
-	@echo "  • make prod-docker     # Self-hosted (all in Docker)"
-	@echo "  • make prod-cloud      # Hybrid (cloud DB + Docker app)"
+	@echo "$(YELLOW)After Dockerfile Changes:$(RESET)"
+	@echo "  make rebuild      Rebuild ALL images"
+	@echo "  make build-web    Rebuild web only"
+	@echo "  make build-crawler Rebuild crawler only"
 	@echo ""
-	@echo "$(YELLOW)🔄 Fork Maintenance:$(RESET)"
-	@echo "  • make sync-upstream   # Pull latest from AtlasP2P"
-	@echo ""
+
+# ===========================================
+# QUICK COMMANDS (Most Used)
+# ===========================================
+
+dev: docker-dev ## Start development environment
+
+down: ## Stop all services
+	@docker compose $(COMPOSE_DOCKER) down 2>/dev/null || true
+	@docker compose $(COMPOSE_CLOUD) down 2>/dev/null || true
+	@docker compose $(COMPOSE_PROD_DOCKER) down 2>/dev/null || true
+	@docker compose $(COMPOSE_PROD_CLOUD) down 2>/dev/null || true
+	@echo "$(GREEN)✓ All services stopped$(RESET)"
+
+down-volumes: ## Stop and remove volumes (DELETES ALL DATA!)
+	@echo "$(YELLOW)⚠️  WARNING: This will delete all data!$(RESET)"
+	@echo "$(YELLOW)Press Ctrl+C to cancel, or wait 5 seconds...$(RESET)"
+	@sleep 5
+	@docker compose $(COMPOSE_DOCKER) down -v 2>/dev/null || true
+	@docker compose $(COMPOSE_CLOUD) down -v 2>/dev/null || true
+	@docker compose $(COMPOSE_PROD_DOCKER) down -v 2>/dev/null || true
+	@docker compose $(COMPOSE_PROD_CLOUD) down -v 2>/dev/null || true
+	@echo "$(GREEN)✓ Containers stopped and volumes removed$(RESET)"
+
+clean-volumes: ## Remove anonymous Docker volumes (safe cleanup)
+	@echo "$(CYAN)Removing anonymous volumes...$(RESET)"
+	@docker volume prune -f
+	@echo "$(GREEN)✓ Anonymous volumes removed$(RESET)"
+
+clean-cache: ## Remove Docker build cache
+	@echo "$(CYAN)Removing Docker build cache...$(RESET)"
+	@docker builder prune -f
+	@echo "$(GREEN)✓ Build cache removed$(RESET)"
+
+clean-all: down clean-volumes clean-cache ## Nuclear option: remove everything
+	@echo "$(YELLOW)Removing all Docker images...$(RESET)"
+	@docker system prune -a -f
+	@echo "$(GREEN)✓ Complete cleanup done$(RESET)"
+
+logs: ## Show all logs (follow mode)
+	@docker compose $(COMPOSE_DOCKER) logs -f 2>/dev/null || docker compose $(COMPOSE_CLOUD) logs -f
+
+ps: ## Show running containers
+	@docker compose $(COMPOSE_DOCKER) ps 2>/dev/null || docker compose $(COMPOSE_CLOUD) ps
+
+restart: down dev ## Restart development environment
+
+shell: ## Open shell in web container
+	@docker exec -it atlasp2p-web sh
 
 # ===========================================
 # SETUP
 # ===========================================
 
 setup-docker: ## Setup for Local Docker (full stack)
-	# Creates .env from .env.docker.example for local Supabase in Docker
-	# Use this when: You want full control and local database
-	# Services: PostgreSQL, Kong, GoTrue, PostgREST, Studio, Web, Crawler, Inbucket
-	@echo "$(CYAN)Setting up for Local Docker Supabase...$(RESET)"
+	@echo "$(CYAN)Setting up for Local Docker...$(RESET)"
 	@if [ ! -f .env ]; then \
 		cp .env.docker.example .env; \
-		echo "$(GREEN)✓ Created .env for Docker mode$(RESET)"; \
+		echo "$(GREEN)✓ Created .env$(RESET)"; \
 	else \
 		echo "$(YELLOW)⚠ .env already exists$(RESET)"; \
 	fi
 	@if [ ! -f config/project.config.yaml ]; then \
 		cp config/project.config.yaml.example config/project.config.yaml; \
 		echo "$(GREEN)✓ Created config/project.config.yaml$(RESET)"; \
-		echo "$(YELLOW)⚠ Customize config/project.config.yaml for your chain!$(RESET)"; \
 	else \
 		echo "$(YELLOW)⚠ config/project.config.yaml already exists$(RESET)"; \
 	fi
@@ -73,16 +132,13 @@ setup-docker: ## Setup for Local Docker (full stack)
 	@mkdir -p data/geoip apps/web/public/avatars
 	@echo ""
 	@echo "$(GREEN)✓ Setup complete!$(RESET)"
-	@echo "$(CYAN)Next: make docker-dev$(RESET)"
+	@echo "$(CYAN)Next: make dev$(RESET)"
 
 setup-cloud: ## Setup for Cloud Supabase (managed DB)
-	# Creates .env from .env.cloud.example for Supabase Cloud
-	# Use this when: You want managed database (no PostgreSQL in Docker)
-	# Services: Web, Crawler only (database hosted on supabase.com)
 	@echo "$(CYAN)Setting up for Cloud Supabase...$(RESET)"
 	@if [ ! -f .env ]; then \
 		cp .env.cloud.example .env; \
-		echo "$(GREEN)✓ Created .env for Cloud mode$(RESET)"; \
+		echo "$(GREEN)✓ Created .env$(RESET)"; \
 		echo "$(YELLOW)⚠ Edit .env with your Supabase credentials!$(RESET)"; \
 	else \
 		echo "$(YELLOW)⚠ .env already exists$(RESET)"; \
@@ -90,7 +146,6 @@ setup-cloud: ## Setup for Cloud Supabase (managed DB)
 	@if [ ! -f config/project.config.yaml ]; then \
 		cp config/project.config.yaml.example config/project.config.yaml; \
 		echo "$(GREEN)✓ Created config/project.config.yaml$(RESET)"; \
-		echo "$(YELLOW)⚠ Customize config/project.config.yaml for your chain!$(RESET)"; \
 	else \
 		echo "$(YELLOW)⚠ config/project.config.yaml already exists$(RESET)"; \
 	fi
@@ -98,54 +153,30 @@ setup-cloud: ## Setup for Cloud Supabase (managed DB)
 	@mkdir -p data/geoip apps/web/public/avatars
 	@echo ""
 	@echo "$(YELLOW)Next steps:$(RESET)"
-	@echo "  1. Create Supabase project at https://supabase.com"
-	@echo "  2. Edit .env and config/project.config.yaml"
-	@echo "  3. Run: supabase link && supabase db push"
-	@echo "  4. Run: make cloud-dev"
+	@echo "  1. Edit .env with Supabase credentials"
+	@echo "  2. Edit config/project.config.yaml"
+	@echo "  3. make cloud-dev"
 
-setup-fork: setup-docker ## 🍴 Setup for forking (enables committing config)
+setup-fork: setup-docker ## Setup for forking (same as setup-docker)
 	@echo ""
-	@echo "$(CYAN)🍴 Configuring for fork...$(RESET)"
+	@echo "$(CYAN)Fork ready!$(RESET)"
 	@echo ""
-	@echo "$(GREEN)✓ Created config/project.config.yaml from template$(RESET)"
-	@echo "$(GREEN)✓ Ready to customize!$(RESET)"
-	@echo ""
-	@echo "$(CYAN)Next steps:$(RESET)"
+	@echo "$(YELLOW)Next steps:$(RESET)"
 	@echo "  1. Edit config/project.config.yaml for your blockchain"
-	@echo "     Examples: config/examples/dingocoin.yaml, dogecoin.yaml"
-	@echo "  2. Edit .env with your settings"
-	@echo "  3. Customize logos in apps/web/public/logos/"
-	@echo "  4. Test locally:"
-	@echo "     $(YELLOW)make dev$(RESET)"
-	@echo "  5. Commit your fork-specific config (use -f to override gitignore):"
-	@echo "     $(YELLOW)git add -f config/project.config.yaml$(RESET)"
-	@echo "     $(YELLOW)git add .env.docker.example .env.cloud.example$(RESET)"
-	@echo "     $(YELLOW)git commit -m \"Configure for YourCoin\"$(RESET)"
-	@echo "     $(YELLOW)git push origin master$(RESET)"
-	@echo ""
-	@echo "$(CYAN)Optional: Validate config$(RESET)"
-	@echo "  make config-check"
-	@echo ""
+	@echo "  2. Edit .env if needed"
+	@echo "  3. make dev"
+	@echo "  4. Commit config: git add -f config/project.config.yaml && git commit"
 
 # ===========================================
-# DEVELOPMENT MODE
+# DEVELOPMENT - DOCKER MODE
 # ===========================================
 
-dev: docker-dev ## Start development (alias for docker-dev)
-
-docker-dev: ## 🐳 Start LOCAL Docker Supabase (full stack)
-	# Starts all services in Docker (database + app)
-	# Breakdown: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-	#   - docker-compose.yml: Base Supabase services (PostgreSQL, Kong, GoTrue, etc.)
-	#   - docker-compose.dev.yml: Web app + crawler containers
-	#   - up -d: Start in background (detached mode)
-	# Result: Full stack runs on ports 4000-4025
-	@echo "$(CYAN)Starting Local Docker Supabase...$(RESET)"
+docker-dev: ## Start full stack (DB + Web + Crawler)
+	@echo "$(CYAN)Starting development stack...$(RESET)"
 	@docker compose $(COMPOSE_DOCKER) up -d
-	@sleep 5
 	@echo ""
 	@echo "$(GREEN)╔═══════════════════════════════════════╗$(RESET)"
-	@echo "$(GREEN)║    🐳 LOCAL DOCKER MODE READY         ║$(RESET)"
+	@echo "$(GREEN)║         DEVELOPMENT READY             ║$(RESET)"
 	@echo "$(GREEN)╚═══════════════════════════════════════╝$(RESET)"
 	@echo ""
 	@echo "  $(CYAN)Web App:$(RESET)      http://localhost:4000"
@@ -154,99 +185,104 @@ docker-dev: ## 🐳 Start LOCAL Docker Supabase (full stack)
 	@echo "  $(CYAN)Inbucket:$(RESET)     http://localhost:4023"
 	@echo "  $(CYAN)PostgreSQL:$(RESET)   localhost:4021"
 	@echo ""
-
-cloud-dev: ## ☁️  Start CLOUD Supabase mode (web + crawler only)
-	@echo "$(CYAN)Starting Cloud Supabase mode...$(RESET)"
-	@if ! grep -q "supabase.co" .env 2>/dev/null; then \
-		echo "$(RED)Error: .env not configured for Supabase Cloud$(RESET)"; \
-		echo "Run: make setup-cloud"; \
-		exit 1; \
-	fi
-	@docker compose $(COMPOSE_CLOUD) up -d
-	@sleep 3
-	@echo ""
-	@echo "$(GREEN)╔═══════════════════════════════════════╗$(RESET)"
-	@echo "$(GREEN)║    ☁️  CLOUD SUPABASE MODE READY      ║$(RESET)"
-	@echo "$(GREEN)╚═══════════════════════════════════════╝$(RESET)"
-	@echo ""
-	@echo "  $(CYAN)Web App:$(RESET)      http://localhost:4000"
-	@echo "  $(CYAN)Supabase:$(RESET)     $$(grep NEXT_PUBLIC_SUPABASE_URL .env | cut -d= -f2)"
+	@echo "$(YELLOW)Useful commands:$(RESET)"
+	@echo "  make logs       View all logs"
+	@echo "  make logs-web   View web logs"
+	@echo "  make down       Stop everything"
 	@echo ""
 
 docker-down: ## Stop Docker mode
 	@docker compose $(COMPOSE_DOCKER) down
 
-cloud-down: ## Stop Cloud mode
-	@docker compose $(COMPOSE_CLOUD) down
-
 docker-logs: ## Show Docker mode logs
 	@docker compose $(COMPOSE_DOCKER) logs -f
+
+# ===========================================
+# DEVELOPMENT - CLOUD MODE
+# ===========================================
+
+cloud-dev: ## Start cloud mode (Web + Crawler only)
+	@echo "$(CYAN)Starting cloud mode...$(RESET)"
+	@if [ ! -f .env ]; then \
+		echo "$(RED)Error: .env not found. Run: make setup-cloud$(RESET)"; \
+		exit 1; \
+	fi
+	@docker compose $(COMPOSE_CLOUD) up -d
+	@echo ""
+	@echo "$(GREEN)╔═══════════════════════════════════════╗$(RESET)"
+	@echo "$(GREEN)║       CLOUD MODE READY                ║$(RESET)"
+	@echo "$(GREEN)╚═══════════════════════════════════════╝$(RESET)"
+	@echo ""
+	@echo "  $(CYAN)Web App:$(RESET)  http://localhost:4000"
+	@echo "  $(CYAN)Database:$(RESET) Supabase Cloud"
+	@echo ""
+
+cloud-down: ## Stop Cloud mode
+	@docker compose $(COMPOSE_CLOUD) down
 
 cloud-logs: ## Show Cloud mode logs
 	@docker compose $(COMPOSE_CLOUD) logs -f
 
-config-reload: ## 🔄 Reload project.config.yaml (restart web only)
+# ===========================================
+# LOGGING (Per-Service)
+# ===========================================
+
+logs-web: ## Show web container logs
+	@docker compose $(COMPOSE_DOCKER) logs -f web 2>/dev/null || docker compose $(COMPOSE_CLOUD) logs -f web
+
+logs-db: ## Show database logs
+	@docker compose $(COMPOSE_DOCKER) logs -f db
+
+logs-crawler: ## Show crawler logs
+	@docker compose $(COMPOSE_DOCKER) logs -f crawler 2>/dev/null || docker compose $(COMPOSE_CLOUD) logs -f crawler
+
+logs-auth: ## Show auth (GoTrue) logs
+	@docker compose $(COMPOSE_DOCKER) logs -f auth
+
+# ===========================================
+# CONFIGURATION
+# ===========================================
+
+config-check: ## Validate project.config.yaml
+	@node scripts/validate-config.mjs
+
+config-reload: ## Reload config (restart web)
 	@echo "$(CYAN)Reloading configuration...$(RESET)"
-	@docker compose $(COMPOSE_DOCKER) restart web
-	@sleep 3
+	@docker compose $(COMPOSE_DOCKER) restart web 2>/dev/null || docker compose $(COMPOSE_CLOUD) restart web
 	@echo "$(GREEN)✓ Config reloaded$(RESET)"
-	@echo "  Web app restarted at http://localhost:4000"
-
-config-check: ## ✓ Validate project.config.yaml against schema
-	@pnpm exec node scripts/validate-config.mjs
-
-dev-web: migrate ## Run web app locally (not in Docker)
-	@echo "$(CYAN)Starting web app on port 4000...$(RESET)"
-	@-pkill -f "next dev" 2>/dev/null || true
-	@-lsof -ti :4000 | xargs kill -9 2>/dev/null || true
-	@sleep 1
-	@PORT=4000 pnpm --filter @atlasp2p/web dev
 
 # ===========================================
-# PRODUCTION MODE
+# PRODUCTION
 # ===========================================
 
-prod-docker: ## 🚀 Production - Self-Hosted (full Docker stack)
+prod-docker: ## Production - Self-hosted (full stack + SSL)
 	@echo "$(CYAN)Starting production (self-hosted)...$(RESET)"
 	@if [ -z "$(DOMAIN)" ] && ! grep -q "^DOMAIN=" .env 2>/dev/null; then \
-		echo "$(RED)Error: DOMAIN not set$(RESET)"; \
-		echo "Set DOMAIN in .env or run: make prod-docker DOMAIN=nodes.example.com"; \
+		echo "$(RED)Error: DOMAIN not set in .env$(RESET)"; \
 		exit 1; \
 	fi
 	@docker compose $(COMPOSE_PROD_DOCKER) up -d --build
-	@sleep 5
 	@echo ""
 	@echo "$(GREEN)╔═══════════════════════════════════════╗$(RESET)"
-	@echo "$(GREEN)║    🚀 PRODUCTION (DOCKER) READY       ║$(RESET)"
+	@echo "$(GREEN)║       PRODUCTION READY                ║$(RESET)"
 	@echo "$(GREEN)╚═══════════════════════════════════════╝$(RESET)"
 	@echo ""
-	@echo "  $(CYAN)Website:$(RESET) https://$${DOMAIN:-$$(grep ^DOMAIN= .env 2>/dev/null | cut -d= -f2)}"
-	@echo "  $(CYAN)API:$(RESET)     https://$${DOMAIN:-$$(grep ^DOMAIN= .env 2>/dev/null | cut -d= -f2)}/supabase"
-	@echo ""
-	@echo "$(YELLOW)Note: SSL certificates auto-provisioned by Caddy$(RESET)"
+	@echo "  $(CYAN)Website:$(RESET) https://$$(grep ^DOMAIN= .env | cut -d= -f2)"
 	@echo ""
 
-prod-cloud: ## 🚀 Production - Hybrid (Cloud DB + Docker app)
+prod-cloud: ## Production - Cloud DB + Docker app + SSL
 	@echo "$(CYAN)Starting production (cloud mode)...$(RESET)"
-	@if ! grep -q "supabase.co" .env 2>/dev/null; then \
-		echo "$(RED)Error: .env not configured for Supabase Cloud$(RESET)"; \
-		echo "Add NEXT_PUBLIC_SUPABASE_URL and keys to .env"; \
-		exit 1; \
-	fi
 	@if [ -z "$(DOMAIN)" ] && ! grep -q "^DOMAIN=" .env 2>/dev/null; then \
-		echo "$(RED)Error: DOMAIN not set$(RESET)"; \
-		echo "Set DOMAIN in .env"; \
+		echo "$(RED)Error: DOMAIN not set in .env$(RESET)"; \
 		exit 1; \
 	fi
 	@docker compose $(COMPOSE_PROD_CLOUD) up -d --build
-	@sleep 3
 	@echo ""
 	@echo "$(GREEN)╔═══════════════════════════════════════╗$(RESET)"
-	@echo "$(GREEN)║    🚀 PRODUCTION (CLOUD) READY        ║$(RESET)"
+	@echo "$(GREEN)║       PRODUCTION READY                ║$(RESET)"
 	@echo "$(GREEN)╚═══════════════════════════════════════╝$(RESET)"
 	@echo ""
-	@echo "  $(CYAN)Website:$(RESET)  https://$${DOMAIN:-$$(grep ^DOMAIN= .env 2>/dev/null | cut -d= -f2)}"
-	@echo "  $(CYAN)Database:$(RESET) $$(grep NEXT_PUBLIC_SUPABASE_URL .env | cut -d= -f2)"
+	@echo "  $(CYAN)Website:$(RESET) https://$$(grep ^DOMAIN= .env | cut -d= -f2)"
 	@echo ""
 
 prod-down: ## Stop production
@@ -256,62 +292,42 @@ prod-down: ## Stop production
 prod-logs: ## Show production logs
 	@docker compose $(COMPOSE_PROD_DOCKER) logs -f 2>/dev/null || docker compose $(COMPOSE_PROD_CLOUD) logs -f
 
-prod-restart: ## Restart production (recreates containers to reload env vars)
-	@echo "$(CYAN)Restarting production (recreating containers)...$(RESET)"
-	@docker compose $(COMPOSE_PROD_DOCKER) up -d --force-recreate 2>/dev/null || docker compose $(COMPOSE_PROD_CLOUD) up -d --force-recreate
+prod-restart: ## Restart production
+	@echo "$(CYAN)Restarting production...$(RESET)"
+	@docker compose $(COMPOSE_PROD_DOCKER) up -d --force-recreate 2>/dev/null || \
+		docker compose $(COMPOSE_PROD_CLOUD) up -d --force-recreate
 	@echo "$(GREEN)✓ Production restarted$(RESET)"
 
 # ===========================================
-# DOCKER UTILITIES
+# DATABASE
 # ===========================================
 
-down: ## Stop all Docker services
-	@docker compose $(COMPOSE_DOCKER) down 2>/dev/null || true
-	@docker compose $(COMPOSE_CLOUD) down 2>/dev/null || true
-
-logs: ## Show Docker logs
-	@docker compose $(COMPOSE_DOCKER) logs -f 2>/dev/null || docker compose $(COMPOSE_CLOUD) logs -f
-
-ps: ## Show running containers
-	@docker compose $(COMPOSE_DOCKER) ps 2>/dev/null || docker compose $(COMPOSE_CLOUD) ps
-
-docker-clean: ## Remove all containers and volumes (WARNING: destroys data!)
-	@docker compose $(COMPOSE_DOCKER) down -v --remove-orphans 2>/dev/null || true
-	@docker compose $(COMPOSE_CLOUD) down -v --remove-orphans 2>/dev/null || true
-	@echo "$(GREEN)✓ Docker cleaned$(RESET)"
-
-# ===========================================
-# DATABASE & MIGRATIONS
-# ===========================================
-
-migrate: ## Run database migrations (SQL files)
-	@echo "$(CYAN)Applying database migrations...$(RESET)"
-	@if docker compose ps db 2>/dev/null | grep -q "Up"; then \
-		for file in supabase/migrations/*.sql; do \
-			echo "  Running: $$(basename $$file)"; \
-			docker compose exec -T db psql -U postgres -d postgres -f /docker-entrypoint-initdb.d/$$(basename $$file) 2>/dev/null || \
-			cat $$file | docker compose exec -T db psql -U postgres -d postgres; \
-		done && \
-		echo "$(GREEN)✓ Migrations applied successfully$(RESET)"; \
-	else \
-		echo "$(RED)✗ Database not running. Start with: make dev$(RESET)"; \
+migrate: ## Run database migrations
+	@echo "$(CYAN)Running migrations...$(RESET)"
+	@if ! docker compose $(COMPOSE_DOCKER) ps db 2>/dev/null | grep -q "Up"; then \
+		echo "$(RED)Error: Database not running. Start with: make dev$(RESET)"; \
 		exit 1; \
 	fi
+	@for file in supabase/migrations/*.sql; do \
+		echo "  Applying: $$(basename $$file)"; \
+		cat $$file | docker compose $(COMPOSE_DOCKER) exec -T db psql -U postgres -d postgres; \
+	done
+	@echo "$(GREEN)✓ Migrations complete$(RESET)"
 
-migrate-file: ## Run a specific migration file (usage: make migrate-file FILE=00019_fix.sql)
+migrate-file: ## Run specific migration (FILE=name.sql)
 	@if [ -z "$(FILE)" ]; then \
 		echo "$(RED)Error: FILE required$(RESET)"; \
-		echo "Usage: make migrate-file FILE=00019_fix_alert_permissions.sql"; \
+		echo "Usage: make migrate-file FILE=0001_foundation.sql"; \
 		exit 1; \
 	fi
-	@echo "$(CYAN)Running migration: $(FILE)$(RESET)"
-	@cat supabase/migrations/$(FILE) | docker compose exec -T db psql -U postgres -d postgres
-	@echo "$(GREEN)✓ Migration applied$(RESET)"
+	@echo "$(CYAN)Running: $(FILE)$(RESET)"
+	@cat supabase/migrations/$(FILE) | docker compose $(COMPOSE_DOCKER) exec -T db psql -U postgres -d postgres
+	@echo "$(GREEN)✓ Done$(RESET)"
 
-migrate-create: ## Create new migration (usage: make migrate-create NAME=add_feature)
+migrate-create: ## Create new migration (NAME=description)
 	@if [ -z "$(NAME)" ]; then \
 		echo "$(RED)Error: NAME required$(RESET)"; \
-		echo "Usage: make migrate-create NAME=add_feature"; \
+		echo "Usage: make migrate-create NAME=add_new_table"; \
 		exit 1; \
 	fi
 	@TIMESTAMP=$$(date +%Y%m%d%H%M%S); \
@@ -319,148 +335,155 @@ migrate-create: ## Create new migration (usage: make migrate-create NAME=add_fea
 	echo "-- Migration: $(NAME)" > $$FILE; \
 	echo "-- Created: $$(date)" >> $$FILE; \
 	echo "" >> $$FILE; \
-	echo "-- Add your SQL here" >> $$FILE; \
 	echo "$(GREEN)✓ Created: $$FILE$(RESET)"
 
-migrate-reset: ## Reset database (WARNING: destroys all data!)
-	@echo "$(RED)⚠ WARNING: This will delete ALL data!$(RESET)"
+migrate-reset: ## Reset database (DESTROYS ALL DATA!)
+	@echo "$(RED)WARNING: This will DELETE ALL DATA!$(RESET)"
 	@read -p "Type 'yes' to confirm: " confirm; \
 	if [ "$$confirm" = "yes" ]; then \
-		docker compose down -v db; \
-		docker compose up -d db; \
+		docker compose $(COMPOSE_DOCKER) down -v db; \
+		docker compose $(COMPOSE_DOCKER) up -d db; \
+		echo "$(CYAN)Waiting for database...$(RESET)"; \
 		sleep 10; \
-		make migrate; \
-		echo "$(GREEN)✓ Database reset complete$(RESET)"; \
+		$(MAKE) migrate; \
 	else \
 		echo "$(YELLOW)Cancelled$(RESET)"; \
 	fi
 
 db-shell: ## PostgreSQL shell
-	@docker compose exec db psql -U postgres -d postgres
+	@docker compose $(COMPOSE_DOCKER) exec db psql -U postgres -d postgres
 
-db-backup: ## Backup database
-	@BACKUP_FILE="backup_$$(date +%Y%m%d_%H%M%S).sql"; \
-	docker compose exec db pg_dump -U postgres postgres > $$BACKUP_FILE; \
-	echo "$(GREEN)✓ Backup saved: $$BACKUP_FILE$(RESET)"
+db-backup: ## Backup database to file
+	@BACKUP="backup_$$(date +%Y%m%d_%H%M%S).sql"; \
+	docker compose $(COMPOSE_DOCKER) exec -T db pg_dump -U postgres postgres > $$BACKUP; \
+	echo "$(GREEN)✓ Saved: $$BACKUP$(RESET)"
 
-db-restore: ## Restore database (usage: make db-restore FILE=backup.sql)
+db-restore: ## Restore database (FILE=backup.sql)
 	@if [ -z "$(FILE)" ]; then \
 		echo "$(RED)Error: FILE required$(RESET)"; \
-		echo "Usage: make db-restore FILE=backup.sql"; \
+		echo "Usage: make db-restore FILE=backup_20240101.sql"; \
 		exit 1; \
 	fi
-	@docker compose exec -T db psql -U postgres -d postgres < $(FILE)
-	@echo "$(GREEN)✓ Database restored$(RESET)"
+	@echo "$(CYAN)Restoring from: $(FILE)$(RESET)"
+	@docker compose $(COMPOSE_DOCKER) exec -T db psql -U postgres -d postgres < $(FILE)
+	@echo "$(GREEN)✓ Restored$(RESET)"
 
 # ===========================================
 # CRAWLER
 # ===========================================
 
-crawler: ## Start crawler service (Docker)
-	@echo "$(CYAN)Starting crawler service...$(RESET)"
+crawler: ## Start crawler service
 	@docker compose $(COMPOSE_DOCKER) up -d crawler
 	@echo "$(GREEN)✓ Crawler started$(RESET)"
-	@echo "View logs: $(CYAN)make crawler-logs$(RESET)"
+	@echo "View logs: make logs-crawler"
 
-crawler-prod: ## Start crawler in production
-	@docker compose $(COMPOSE_PROD_DOCKER) up -d crawler
-
-crawler-dev: ## Run crawler locally (once)
+crawler-local: ## Run crawler locally (not in Docker)
 	@cd apps/crawler && python -m src.crawler
 
-crawler-logs: ## Show crawler logs
-	@docker compose logs -f crawler
-
 geoip: ## Download GeoIP databases
-	@echo "$(CYAN)Downloading GeoIP...$(RESET)"
+	@echo "$(CYAN)Downloading GeoIP databases...$(RESET)"
 	@mkdir -p data/geoip
-	@if [ -f .env ]; then \
-		export $$(grep -v '^#' .env | xargs) && \
-		cd apps/crawler && python3 -m src.geoip_download ../../data/geoip; \
-	else \
-		echo "$(RED)Error: .env not found. Run: make env$(RESET)"; \
+	@if [ ! -f .env ]; then \
+		echo "$(RED)Error: .env not found. Run: make setup-docker$(RESET)"; \
 		exit 1; \
 	fi
+	@if ! docker compose $(COMPOSE_DOCKER) ps crawler 2>/dev/null | grep -q "Up"; then \
+		echo "$(YELLOW)Starting crawler container...$(RESET)"; \
+		docker compose $(COMPOSE_DOCKER) up -d crawler; \
+		sleep 3; \
+	fi
+	@docker compose $(COMPOSE_DOCKER) exec crawler python -m src.geoip_download /app/data/geoip
+	@echo "$(GREEN)✓ GeoIP databases downloaded$(RESET)"
+
+# ===========================================
+# DOCKER IMAGE BUILDS
+# ===========================================
+
+build-images: ## Rebuild all Docker images (web + crawler)
+	@echo "$(CYAN)Rebuilding all Docker images...$(RESET)"
+	@docker compose $(COMPOSE_DOCKER) build --no-cache web crawler
+	@echo "$(GREEN)✓ Images rebuilt$(RESET)"
+
+build-web: ## Rebuild web image only
+	@echo "$(CYAN)Rebuilding web image...$(RESET)"
+	@docker compose $(COMPOSE_DOCKER) build --no-cache web
+	@echo "$(GREEN)✓ Web image rebuilt$(RESET)"
+
+build-crawler: ## Rebuild crawler image only
+	@echo "$(CYAN)Rebuilding crawler image...$(RESET)"
+	@docker compose $(COMPOSE_DOCKER) build --no-cache crawler
+	@echo "$(GREEN)✓ Crawler image rebuilt$(RESET)"
+
+rebuild: down build-images dev ## Stop, rebuild images, restart
 
 # ===========================================
 # CODE QUALITY
 # ===========================================
 
-lint: ## Run linter
+lint: ## Run ESLint
 	@pnpm lint
 
-typecheck: ## TypeScript check
+typecheck: ## Run TypeScript check
 	@pnpm typecheck
 
 test: ## Run tests
 	@pnpm test
 
-format: ## Format code
+format: ## Format code with Prettier
 	@pnpm format
 
-build: ## Build for production
-	@echo "$(CYAN)Building...$(RESET)"
+build: ## Build for production (pnpm)
 	@pnpm build
 
 # ===========================================
 # CLEANUP
 # ===========================================
 
-clean-cache: ## Clean Next.js cache only
-	@echo "$(CYAN)Cleaning Next.js cache...$(RESET)"
-	@chmod -R 755 apps/web/.next apps/web/.turbo 2>/dev/null || true
-	@rm -rf apps/web/.next apps/web/.turbo
-	@echo "$(GREEN)✓ Cache cleaned$(RESET)"
-
-clean: ## Clean build artifacts
-	@echo "$(CYAN)Cleaning...$(RESET)"
+clean: ## Clean all build artifacts and node_modules
 	@rm -rf node_modules apps/*/node_modules packages/*/node_modules
-	@chmod -R 755 apps/web/.next apps/web/.turbo 2>/dev/null || true
-	@rm -rf apps/web/.next .turbo
-	@rm -rf apps/crawler/__pycache__ apps/crawler/*.pyc
+	@rm -rf apps/web/.next apps/web/.turbo .turbo
+	@rm -rf apps/crawler/__pycache__
 	@echo "$(GREEN)✓ Cleaned$(RESET)"
 
-reset: clean docker-clean setup-docker ## Full reset (destroys all data!)
+docker-clean: ## Remove containers and volumes (DESTROYS DATA!)
+	@docker compose $(COMPOSE_DOCKER) down -v --remove-orphans 2>/dev/null || true
+	@docker compose $(COMPOSE_CLOUD) down -v --remove-orphans 2>/dev/null || true
+	@echo "$(GREEN)✓ Docker cleaned$(RESET)"
+
+reset: clean docker-clean setup-docker ## Full reset (DESTROYS ALL DATA!)
 
 # ===========================================
 # UTILITIES
 # ===========================================
 
-sync-upstream: ## Sync latest changes from AtlasP2P upstream
-	@echo "$(CYAN)Syncing with AtlasP2P upstream...$(RESET)"
+sync-upstream: ## Pull latest from AtlasP2P upstream
+	@echo "$(CYAN)Syncing with upstream...$(RESET)"
 	@if ! git remote | grep -q "^upstream$$"; then \
-		echo "$(YELLOW)Adding AtlasP2P as upstream remote...$(RESET)"; \
 		git remote add upstream https://github.com/RaxTzu/AtlasP2P.git; \
-		echo "$(GREEN)✓ Upstream remote added$(RESET)"; \
+		echo "$(GREEN)✓ Added upstream remote$(RESET)"; \
 	fi
-	@echo "$(CYAN)Fetching from upstream...$(RESET)"
 	@git fetch upstream
-	@echo "$(CYAN)Merging upstream/master into current branch...$(RESET)"
 	@git merge upstream/master
+	@echo "$(GREEN)✓ Synced with upstream$(RESET)"
 	@echo ""
-	@echo "$(GREEN)╔═══════════════════════════════════════╗$(RESET)"
-	@echo "$(GREEN)║    ✓ SYNCED WITH ATLASP2P UPSTREAM    ║$(RESET)"
-	@echo "$(GREEN)╚═══════════════════════════════════════╝$(RESET)"
-	@echo ""
-	@echo "$(YELLOW)Next steps:$(RESET)"
-	@echo "  1. Review changes: $(CYAN)git log$(RESET)"
-	@echo "  2. Test locally: $(CYAN)make docker-dev$(RESET)"
-	@echo "  3. Push to your fork: $(CYAN)git push origin master$(RESET)"
-	@echo ""
+	@echo "$(YELLOW)Next: git push origin master$(RESET)"
 
 check: ## Check system requirements
 	@echo "$(CYAN)Checking requirements...$(RESET)"
-	@command -v node >/dev/null 2>&1 && echo "$(GREEN)✓ Node.js installed$(RESET)" || echo "$(RED)✗ Node.js not found$(RESET)"
-	@command -v pnpm >/dev/null 2>&1 && echo "$(GREEN)✓ pnpm installed$(RESET)" || echo "$(RED)✗ pnpm not found$(RESET)"
-	@command -v docker >/dev/null 2>&1 && echo "$(GREEN)✓ Docker installed$(RESET)" || echo "$(RED)✗ Docker not found$(RESET)"
-	@command -v python3 >/dev/null 2>&1 && echo "$(GREEN)✓ Python3 installed$(RESET)" || echo "$(RED)✗ Python3 not found$(RESET)"
-	@[ -f .env ] && echo "$(GREEN)✓ .env exists$(RESET)" || echo "$(YELLOW)⚠ .env not found (run: make env)$(RESET)"
+	@command -v node >/dev/null && echo "$(GREEN)✓ Node.js$(RESET)" || echo "$(RED)✗ Node.js$(RESET)"
+	@command -v pnpm >/dev/null && echo "$(GREEN)✓ pnpm$(RESET)" || echo "$(RED)✗ pnpm$(RESET)"
+	@command -v docker >/dev/null && echo "$(GREEN)✓ Docker$(RESET)" || echo "$(RED)✗ Docker$(RESET)"
+	@command -v python3 >/dev/null && echo "$(GREEN)✓ Python3$(RESET)" || echo "$(RED)✗ Python3$(RESET)"
+	@[ -f .env ] && echo "$(GREEN)✓ .env$(RESET)" || echo "$(YELLOW)⚠ .env missing (run: make setup-docker)$(RESET)"
+	@[ -f config/project.config.yaml ] && echo "$(GREEN)✓ config$(RESET)" || echo "$(YELLOW)⚠ config missing$(RESET)"
 
 status: ## Show project status
-	@echo "$(CYAN)Project Status:$(RESET)"
+	@echo "$(CYAN)Project Status$(RESET)"
 	@echo ""
-	@docker compose ps 2>/dev/null || echo "$(YELLOW)Docker not running$(RESET)"
+	@echo "$(YELLOW)Containers:$(RESET)"
+	@docker compose $(COMPOSE_DOCKER) ps 2>/dev/null || echo "  Not running"
 	@echo ""
-	@[ -f .env ] && echo "$(GREEN)✓ .env configured$(RESET)" || echo "$(RED)✗ .env missing$(RESET)"
-	@[ -d data/geoip ] && echo "$(GREEN)✓ GeoIP directory exists$(RESET)" || echo "$(YELLOW)⚠ GeoIP directory missing$(RESET)"
-	@[ -f data/geoip/GeoLite2-City.mmdb ] && echo "$(GREEN)✓ GeoIP database exists$(RESET)" || echo "$(YELLOW)⚠ GeoIP database missing (run: make geoip)$(RESET)"
+	@echo "$(YELLOW)Files:$(RESET)"
+	@[ -f .env ] && echo "  $(GREEN)✓$(RESET) .env" || echo "  $(RED)✗$(RESET) .env"
+	@[ -f config/project.config.yaml ] && echo "  $(GREEN)✓$(RESET) config/project.config.yaml" || echo "  $(RED)✗$(RESET) config/project.config.yaml"
+	@[ -f data/geoip/GeoLite2-City.mmdb ] && echo "  $(GREEN)✓$(RESET) GeoIP database" || echo "  $(YELLOW)⚠$(RESET) GeoIP missing (run: make geoip)"

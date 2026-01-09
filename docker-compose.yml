@@ -4,15 +4,10 @@
 # Base services shared between dev and prod.
 # Use with docker-compose.dev.yml or docker-compose.prod.yml
 #
-# Development:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-#
-# Production:
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-#
-# Or use Makefile:
-#   make dev    # Development mode
-#   make prod   # Production mode
+# Or use Makefile (recommended):
+#   make dev          # Development mode
+#   make prod-docker  # Production mode (self-hosted)
+#   make prod-cloud   # Production mode (cloud Supabase)
 # ============================================
 
 services:
@@ -164,12 +159,17 @@ services:
       # Docker-specific overrides
       - SUPABASE_URL=http://kong:8000
       - GEOIP_DB_PATH=/app/data/geoip
+      # Pass web port for API communication
+      - WEB_PORT=${WEB_PORT:-4000}
     volumes:
       # Persist GeoIP databases
       - geoip-data:/app/data/geoip
 
       # Optional: Mount config for hot-reload (dev only)
       # - ./config:/app/config:ro
+    # Allow crawler to reach host RPC (Linux workaround for host.docker.internal)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

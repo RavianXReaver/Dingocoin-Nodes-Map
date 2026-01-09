@@ -1,3 +1,8 @@
+---
+layout: default
+title: Architecture - AtlasP2P
+---
+
 # AtlasP2P - Architecture Documentation
 
 ## Project Overview
@@ -74,26 +79,33 @@ AtlasP2P/
 
 The database follows Supabase's official architecture with a professional 4-layer initialization:
 
-**Layer 0: Core Roles** (`00000_supabase_core.sql`)
+**Layer 1: Foundation** (`0001_foundation.sql`)
 - Creates all Supabase system users and roles
 - `supabase_admin` - superuser for migrations
 - `authenticator` - PostgREST connection user (NOINHERIT for security)
 - `anon`, `authenticated`, `service_role` - JWT-switchable API roles
 - `supabase_auth_admin`, `supabase_storage_admin` - service admins
-
-**Layer 1: Infrastructure** (`00000_supabase_schemas.sql`)
 - Creates `extensions`, `auth`, `storage` schemas
 - Installs PostgreSQL extensions (uuid-ossp, pgcrypto, pg_trgm)
 - Sets up `supabase_realtime` publication
 - Configures default privileges and search paths
 
-**Layer 2: Auth Functions** (`00001_supabase_auth.sql`)
+**Layer 2: Schema** (`0002_schema.sql`)
+- Core tables: `nodes`, `snapshots`, `node_snapshots`, `network_snapshots`
+- User features: `verifications`, `verified_nodes`, `node_profiles`
+- Monetization: `node_tip_configs`, `tips`
+- Views: `nodes_public`, `network_stats`, `leaderboard`
+- All constraints, indexes, and relationships
+
+**Layer 3: Functions** (`0003_functions.sql`)
 - `auth.uid()` - Extract user UUID from JWT
 - `auth.role()` - Extract role from JWT
 - `auth.email()` - Extract email from JWT
+- `is_admin()` - Check admin status
+- Automated triggers for timestamps, profile changes
 - Used extensively in RLS policies
 
-**Layer 3: Application Schema** (`00002_initial_schema.sql`)
+**Layer 4: Policies** (`0004_policies.sql`)
 - Core tables: `nodes`, `snapshots`, `node_snapshots`, `network_snapshots`
 - User features: `verifications`, `verified_nodes`, `node_profiles`
 - Monetization: `node_tip_configs`, `tips`
@@ -500,39 +512,50 @@ CREATE POLICY "Admins can view admin users"
 
 **1. First Time Setup**:
 ```bash
-make setup          # Creates .env, installs deps, downloads GeoIP
+make setup-docker   # Creates .env, installs deps
 ```
 
-**2. Start Database**:
+**2. Start Development**:
 ```bash
-make up            # Starts Supabase (PostgreSQL + Studio + Auth)
+make dev            # Starts full stack (DB + Web + Crawler)
 ```
 
-**3. Start Development Server**:
-```bash
-make dev           # Starts web app on port 4000
-```
-
-**4. Access the Application**:
+**3. Access the Application**:
 - **Web App**: http://localhost:4000
 - **Supabase Studio**: http://localhost:4022
 - **API**: http://localhost:4020
 
-### All Makefile Commands
+### Key Makefile Commands
 
 Run `make help` to see all available commands:
 
 ```bash
-make help          # Show all commands
-make setup         # First time setup
-make dev           # Start web app (PORT 4000)
-make build         # Production build
-make test          # Run tests (PORT 4001)
-make typecheck     # TypeScript validation
-make db-start      # Start database
-make db-stop       # Stop database
-make db-studio     # Open Supabase Studio
-make crawler-dev   # Run crawler once
+# Setup
+make setup-docker   # First time setup (local Docker)
+make setup-cloud    # First time setup (Supabase Cloud)
+make setup-fork     # Setup for forking
+
+# Development
+make dev            # Start development stack
+make down           # Stop all services
+make restart        # Restart development
+make logs           # View all logs
+make logs-web       # View web app logs
+make logs-crawler   # View crawler logs
+
+# Database
+make migrate        # Run migrations
+make db-shell       # PostgreSQL shell
+
+# Production
+make prod-docker    # Production (self-hosted)
+make prod-cloud     # Production (cloud DB)
+
+# Code Quality
+make lint           # Run ESLint
+make typecheck      # TypeScript check
+make build          # Production build
+make test           # Run tests
 ```
 
 ### Port Configuration
@@ -553,14 +576,14 @@ make crawler-dev   # Run crawler once
 ```bash
 # Migrations auto-run on container start via /docker-entrypoint-initdb.d/
 # Or manually:
-docker exec -i atlasp2p-db psql -U supabase_admin -d postgres < supabase/migrations/00000_supabase_core.sql
+docker exec -i atlasp2p-db psql -U supabase_admin -d postgres < supabase/migrations/0001_foundation.sql
 ```
 
 **Migration Order** (critical):
-1. `00000_supabase_core.sql` - Roles
-2. `00000_supabase_schemas.sql` - Schemas
-3. `00001_supabase_auth.sql` - Auth functions
-4. `00002_initial_schema.sql` - Application tables
+1. `0001_foundation.sql` - Roles, schemas, extensions
+2. `0002_schema.sql` - Tables, constraints, indexes
+3. `0003_functions.sql` - Database functions and triggers
+4. `0004_policies.sql` - Row Level Security policies
 
 ### Accessing Services
 

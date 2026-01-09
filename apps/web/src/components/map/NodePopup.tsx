@@ -206,7 +206,7 @@ export function NodePopup({ node }: NodePopupProps) {
                 href={node.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/80 rounded text-xs transition-colors"
+                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/60 hover:text-foreground rounded text-xs transition-colors"
               >
                 <Globe className="h-4 w-4" />
                 Website
@@ -217,7 +217,7 @@ export function NodePopup({ node }: NodePopupProps) {
                 href={`https://twitter.com/${node.twitter.replace('@', '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/80 rounded text-xs transition-colors"
+                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/60 hover:text-foreground rounded text-xs transition-colors"
               >
                 <Twitter className="h-4 w-4" />
                 Twitter
@@ -228,7 +228,7 @@ export function NodePopup({ node }: NodePopupProps) {
                 href={`https://github.com/${node.github}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/80 rounded text-xs transition-colors"
+                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/60 hover:text-foreground rounded text-xs transition-colors"
               >
                 <Github className="h-4 w-4" />
                 GitHub
@@ -239,7 +239,7 @@ export function NodePopup({ node }: NodePopupProps) {
                 href={node.discord}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/80 rounded text-xs transition-colors"
+                className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/60 hover:text-foreground rounded text-xs transition-colors"
               >
                 <MessageCircle className="h-4 w-4" />
                 Discord

@@ -57,10 +57,13 @@ make cloud-dev      # Starts Web + Crawler only
 - Commit with `git add -f config/project.config.yaml`
 - See [FORKING.md](./docs/FORKING.md) for complete instructions
 
-**Access locally**:
+**Access locally** (default ports - configurable via .env):
 - Web App: http://localhost:4000
 - Supabase Studio: http://localhost:4022 (Docker mode only)
 - API: http://localhost:4020 (Docker mode only)
+- Inbucket (email testing): http://localhost:4023 (Docker mode only)
+
+**Port Configuration**: All ports are configurable in `.env` via `WEB_PORT`, `KONG_PORT`, `DB_PORT`, `STUDIO_PORT`, etc. See `.env.example` for full list.
 
 ### Production
 
@@ -70,7 +73,9 @@ DOMAIN=nodes.yourcoin.org
 ACME_EMAIL=admin@yourcoin.org
 
 # 2. Deploy with auto-SSL
-make prod
+make prod-docker   # Self-hosted (full stack)
+# OR
+make prod-cloud    # Cloud Supabase + Docker app
 ```
 
 **Access**: https://nodes.yourcoin.org (Caddy handles SSL certificates automatically)
@@ -126,7 +131,9 @@ chainConfig:
 
 **3. Deploy!**
 ```bash
-make prod
+make prod-docker   # Self-hosted
+# OR
+make prod-cloud    # Cloud Supabase
 ```
 
 **Keep Your Fork Updated:**

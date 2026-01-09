@@ -1,0 +1,42 @@
+# ============================================
+# CLOUD MODE - DEVELOPMENT OVERRIDES
+# ============================================
+# Adds hot reload for cloud mode development.
+# Use with Supabase Cloud (managed database).
+#
+# Usage:
+#   docker compose -f docker-compose.cloud.yml -f docker-compose.cloud-dev.yml up -d
+#   make cloud-dev
+#
+# Features:
+#   - Source code hot reload
+#   - Development-specific environment variables
+# ============================================
+
+services:
+  # ===========================================
+  # WEB - DEVELOPMENT OVERRIDES
+  # ===========================================
+  web:
+    volumes:
+      # Hot reload for source code
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+      - ./config:/app/config
+      # Prevent host node_modules from overwriting container's
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      # Use named volume for .next cache
+      - web-next-cache:/app/apps/web/.next
+    environment:
+      - NODE_ENV=development
+      - WEB_TARGET=development
+
+  # ===========================================
+  # CRAWLER - DEVELOPMENT OVERRIDES
+  # ===========================================
+  crawler:
+    volumes:
+      # Hot reload for crawler source
+      - ./apps/crawler:/app/apps/crawler
+      - geoip-data:/app/data/geoip

@@ -1,3 +1,8 @@
+---
+layout: default
+title: Crawler Guide - AtlasP2P
+---
+
 # Crawler Enhancement Implementation Guide
 
 ## Quick Start (5 minutes)
@@ -28,7 +33,7 @@ RPC_PASS=your_rpc_password
 4. **Run the enhanced crawler**:
 ```bash
 cd /path/to/AtlasP2P
-make crawler-dev
+make crawler-local
 ```
 
 ### Option 2: Manual Integration (if you want to keep existing code)
@@ -288,7 +293,7 @@ INFO: Crawl pass complete total_nodes=120 online_nodes=95
 ```bash
 # Run in background with logging
 cd /path/to/AtlasP2P
-make crawler-dev 2>&1 | tee crawler.log
+make crawler-local 2>&1 | tee crawler.log
 ```
 
 Leave it running for 30 minutes and check results:
@@ -431,7 +436,7 @@ nano ../../.env.local
 # Delete RPC_* lines
 
 # Restart crawler
-make crawler-dev
+make crawler-local
 ```
 
 ---

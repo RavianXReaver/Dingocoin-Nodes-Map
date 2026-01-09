@@ -44,6 +44,8 @@ chainConfig:
   pubKeyHash: "00"  # Bitcoin uses 0x00 for addresses starting with '1'
 
   # DNS seeds for P2P peer discovery
+  # At least one of dnsSeeds or seedNodes must be provided
+  # Use empty array [] if DNS seeds don't exist yet (common for new forks)
   dnsSeeds:
     - seed1.yourcoin.org
     - seed2.yourcoin.org
@@ -52,6 +54,7 @@ chainConfig:
   # Known seed nodes (IP:port format) - these are crawled directly
   # Useful for ensuring specific nodes are always discovered
   # Add your own nodes or well-known community nodes here
+  # REQUIRED if dnsSeeds is empty
   seedNodes:
     - "127.0.0.1:8333"
 
@@ -203,6 +206,12 @@ content:
   # Footer text customization
   copyrightText: Created by YourCoin Community.
   githubRepoUrl: https://github.com/RaxTzu/AtlasP2P
+
+  # Support contact configuration (shown when errors occur)
+  support:
+    enabled: true
+    email: support@yourcoin.org
+    discord: https://discord.gg/yourcoin
 
 # ===========================================
 # MAP CONFIGURATION

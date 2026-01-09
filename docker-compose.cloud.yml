@@ -20,25 +20,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
-      target: ${WEB_TARGET:-development}
+      target: ${WEB_TARGET:-production}
     container_name: atlasp2p-web
     ports:
       - "${PORT:-4000}:${PORT:-4000}"
     env_file:
       - .env
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=${NODE_ENV:-production}
       # Cloud mode: internal URL = public URL (no local Kong)
       - SUPABASE_INTERNAL_URL=${NEXT_PUBLIC_SUPABASE_URL}
     volumes:
+      # Persist avatars (if using local storage instead of Supabase Storage)
       - avatar-storage:/app/public/avatars
+      # Persist Next.js build cache
       - web-next-cache:/app/apps/web/.next/cache
-      # Dev hot reload (only applies in dev mode)
-      - ./apps/web:/app/apps/web
-      - ./packages:/app/packages
-      - ./config:/app/config
-      - /app/node_modules
-      - /app/apps/web/node_modules
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PORT:-4000}/api/health"]

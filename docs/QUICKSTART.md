@@ -1,3 +1,8 @@
+---
+layout: default
+title: Quick Start - AtlasP2P
+---
+
 # AtlasP2P - Quick Start Guide
 
 ## 🚀 Choose Your Deployment Path
@@ -294,10 +299,10 @@ make docker-dev
 **Docker mode:**
 ```bash
 # Check if PostgreSQL is running
-docker compose ps db
+make ps
 
 # View logs
-make docker-logs
+make logs-db
 ```
 
 **Cloud mode:**

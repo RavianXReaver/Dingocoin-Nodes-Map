@@ -1,3 +1,8 @@
+---
+layout: default
+title: Deployment Scenarios - AtlasP2P
+---
+
 # AtlasP2P - Complete Deployment Scenarios
 
 ## 🎯 All Possible Scenarios Explained
@@ -26,15 +31,34 @@ This document covers **EVERY** way you can deploy AtlasP2P, from development to 
 **Architecture:**
 ```
 Docker Compose
-├── PostgreSQL (5432 → 4021)
-├── Kong (8000 → 4020)
+├── PostgreSQL (5432 → ${DB_PORT:-4021})
+├── Kong (8000 → ${KONG_PORT:-4020})
 ├── GoTrue (auth)
 ├── PostgREST (REST API)
-├── Inbucket (email testing → 4023)
-├── Supabase Studio (admin → 4022)
-├── Web App (Next.js → 4000)
+├── Inbucket (email testing → ${INBUCKET_WEB_PORT:-4023})
+├── Supabase Studio (admin → ${STUDIO_PORT:-4022})
+├── Web App (Next.js → ${WEB_PORT:-4000})
 └── Crawler (Python)
 ```
+
+**Port Configuration:**
+All exposed ports are configurable via `.env` for maximum flexibility:
+
+```bash
+# .env - Port Configuration
+WEB_PORT=4000              # Web app
+KONG_PORT=4020             # Supabase API Gateway
+DB_PORT=4021               # PostgreSQL direct access
+STUDIO_PORT=4022           # Supabase Studio UI
+INBUCKET_WEB_PORT=4023     # Email testing UI
+INBUCKET_SMTP_PORT=4024    # Email SMTP
+```
+
+**Why configurable ports?**
+- Run multiple AtlasP2P instances (different chains)
+- Avoid port conflicts with existing services
+- Custom firewall rules
+- Fork-friendly deployment
 
 **Setup:**
 ```bash
@@ -488,8 +512,8 @@ Is this for development?
 ### Docker Dev: "Kong unhealthy"
 
 ```bash
-docker compose logs kong
-docker compose restart kong
+make logs-auth   # Check auth/Kong logs
+make restart     # Restart all services
 ```
 
 ### Cloud Dev: "Unauthorized"
@@ -510,7 +534,7 @@ curl https://xxxxx.supabase.co/rest/v1/ \
 dig nodes.yourchain.com
 
 # Check Caddy logs
-docker compose logs caddy
+make prod-logs
 
 # Verify ACME_EMAIL
 grep ACME_EMAIL .env

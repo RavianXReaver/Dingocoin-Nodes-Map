@@ -52,11 +52,11 @@ export function NodesTable({ nodes, onNodeClick }: NodesTableProps) {
               'Offline'
             }>
               {row.original.status === 'up' ? (
-                <CheckCircle className="h-4 w-4 text-success" />
+                <CheckCircle className="h-6 w-6 text-success" />
               ) : row.original.status === 'reachable' ? (
-                <AlertCircle className="h-4 w-4 text-warning" />
+                <AlertCircle className="h-6 w-6 text-warning" />
               ) : (
-                <XCircle className="h-4 w-4 text-destructive" />
+                <XCircle className="h-6 w-6 text-destructive" />
               )}
             </span>
           </div>
@@ -208,7 +208,7 @@ export function NodesTable({ nodes, onNodeClick }: NodesTableProps) {
                               ) : header.column.getIsSorted() === 'desc' ? (
                                 <ChevronDown className="h-4 w-4" />
                               ) : (
-                                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                                <ChevronsUpDown className="h-4 w-4" />
                               )}
                             </span>
                           )}
@@ -261,14 +261,14 @@ export function NodesTable({ nodes, onNodeClick }: NodesTableProps) {
           <button
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
-            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground transition-colors"
           >
             First
           </button>
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground transition-colors"
           >
             Previous
           </button>
@@ -281,14 +281,14 @@ export function NodesTable({ nodes, onNodeClick }: NodesTableProps) {
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground transition-colors"
           >
             Next
           </button>
           <button
             onClick={() => table.setPageIndex(table.getPageCount() - 1)}
             disabled={!table.getCanNextPage()}
-            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground transition-colors"
           >
             Last
           </button>

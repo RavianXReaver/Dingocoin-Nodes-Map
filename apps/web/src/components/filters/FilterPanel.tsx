@@ -85,7 +85,7 @@ export function FilterPanel() {
                 value={filters.search || ''}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-muted rounded-lg text-sm focus:outline-none transition-all border border-border text-foreground placeholder:text-muted-foreground"
-                onFocus={(e) => e.target.style.boxShadow = `0 0 0 2px ${theme.primaryColor}40`}
+                onFocus={(e) => e.target.style.boxShadow = `0 0 0 2px ${theme.primaryColor}50`}
                 onBlur={(e) => e.target.style.boxShadow = 'none'}
               />
             </div>
@@ -106,8 +106,8 @@ export function FilterPanel() {
                       }
                       className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                         isActive
-                          ? 'text-white'
-                          : 'bg-muted text-foreground hover:bg-muted/80 border border-border'
+                          ? 'text-white shadow-md'
+                          : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border'
                       }`}
                       style={isActive ? { backgroundColor: option.color } : {}}
                     >
@@ -135,8 +135,8 @@ export function FilterPanel() {
                       }
                       className={`px-2.5 py-2 text-xs font-medium rounded-lg transition-all flex items-center justify-start gap-2 ${
                         isActive
-                          ? 'text-white'
-                          : 'bg-muted text-foreground hover:bg-muted/80 border border-border'
+                          ? 'text-white shadow-md'
+                          : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border'
                       }`}
                       style={isActive ? { backgroundColor: option.color } : {}}
                     >

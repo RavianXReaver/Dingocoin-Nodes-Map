@@ -26,9 +26,9 @@ docker-compose.prod.yml  # Prod overrides (Caddy reverse proxy)
 
 ### Development
 ```bash
-make dev          # Start all services with debug ports
-make dev-down     # Stop
-make dev-logs     # View logs
+make dev          # Start all services
+make down         # Stop
+make logs         # View logs
 ```
 
 Exposed ports: 4000 (Web), 4020 (Kong), 4021 (DB), 4022 (Studio), 4023 (Inbucket)
@@ -39,7 +39,7 @@ Exposed ports: 4000 (Web), 4020 (Kong), 4021 (DB), 4022 (Studio), 4023 (Inbucket
 # DOMAIN=nodes.dingocoin.com
 # ACME_EMAIL=admin@dingocoin.com
 
-make prod         # Start with Caddy (auto-SSL)
+make prod-docker  # Start with Caddy (auto-SSL)
 make prod-down    # Stop
 make prod-logs    # View logs
 ```

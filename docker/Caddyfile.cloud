@@ -17,7 +17,9 @@
     # ===========================================
     # WEB APPLICATION (Next.js)
     # ===========================================
-    reverse_proxy web:3000 {
+    # NOTE: "web:4000" references Docker service name and internal container port
+    # The external port (WEB_PORT in .env) can be different
+    reverse_proxy web:4000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
@@ -32,5 +34,6 @@
     }
     redir @notlocalhost https://{host}{uri} permanent
 
-    reverse_proxy web:3000
+    # Uses internal container port, not WEB_PORT
+    reverse_proxy web:4000
 }

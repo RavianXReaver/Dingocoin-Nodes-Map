@@ -28,8 +28,8 @@ services:
       - ACME_EMAIL=${ACME_EMAIL:-admin@localhost}
     volumes:
       - ./docker/Caddyfile.cloud:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - atlasp2p_caddy-data:/data
+      - atlasp2p_caddy-config:/config
     depends_on:
       - web
     restart: unless-stopped
@@ -44,5 +44,5 @@ services:
       - WEB_TARGET=production
 
 volumes:
-  caddy-data:
-  caddy-config:
+  atlasp2p_caddy-data:
+  atlasp2p_caddy-config:

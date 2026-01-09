@@ -1,3 +1,8 @@
+---
+layout: default
+title: Getting Started - AtlasP2P
+---
+
 # 🎉 AtlasP2P - Getting Started
 
 Welcome to AtlasP2P! This guide covers everything you need to know to get up and running.

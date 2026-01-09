@@ -89,7 +89,7 @@ export function CountryTable({
 
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) {
-      return <ChevronsUpDown className="h-4 w-4 opacity-50" />;
+      return <ChevronsUpDown className="h-4 w-4" />;
     }
     return sortOrder === 'asc'
       ? <ChevronUp className="h-4 w-4" />
@@ -194,7 +194,7 @@ export function CountryTable({
                       className={`
                         cursor-pointer transition-all duration-200
                         ${isSelected
-                          ? 'bg-primary/10 hover:bg-primary/15'
+                          ? 'bg-primary/15 hover:bg-primary/20'
                           : 'hover:bg-muted/50'
                         }
                         ${isTopThree ? 'font-semibold' : ''}

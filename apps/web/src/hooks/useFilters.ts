@@ -23,7 +23,7 @@ const defaultFilters: NodeFilters = {
   tier: undefined,
   isVerified: undefined,
   search: undefined,
-  limit: 1000,
+  limit: 500, // Reduced from 1000 for faster initial loads
   offset: 0,
   sortBy: 'rank',
   sortOrder: 'asc',

@@ -107,6 +107,8 @@ export interface VersionDistribution {
   version: string;
   count: number;
   percentage: number;
+  onlineCount: number;
+  isCurrentVersion: boolean;
 }
 
 export interface CountryDistribution {
@@ -392,6 +394,12 @@ export interface TileStyleConfig {
   accessibility?: 'low' | 'medium' | 'high' | 'aaa';
 }
 
+export interface SupportContact {
+  enabled: boolean;
+  email?: string;
+  discord?: string;
+}
+
 export interface ContentConfig {
   siteName: string;
   siteDescription: string;
@@ -405,6 +413,7 @@ export interface ContentConfig {
   social: SocialLink[];
   copyrightText?: string;
   githubRepoUrl?: string;
+  support?: SupportContact;
 }
 
 // -------------------------------------------
