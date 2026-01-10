@@ -18,6 +18,7 @@ import { initializeConfig, getChainConfig, getThemeConfig } from '@atlasp2p/conf
 import { getChainConfigWithOverrides, isMaintenanceMode } from '@/lib/config-overrides';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs'; // Required for fs-based config loader
 
 // Allow up to 60 seconds for processing
 export const maxDuration = 60;
