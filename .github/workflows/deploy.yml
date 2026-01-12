@@ -64,7 +64,8 @@ on:
 env:
   REGISTRY: ghcr.io
   NODE_VERSION: '20'
-  DEPLOYMENT_ENVIRONMENT: production  # GitHub environment name for secrets/vars
+  # GitHub Environment name configured via DEPLOYMENT_ENVIRONMENT repository variable
+  # Defaults to 'production' if not set. Create environment in Settings → Environments.
 
 jobs:
   detect-config:
@@ -343,6 +344,10 @@ jobs:
   build:
     name: Build Images
     needs: [detect-config, prepare-env]
+    if: |
+      always() &&
+      needs.detect-config.result == 'success' &&
+      needs.prepare-env.result == 'success'
     runs-on: ubuntu-latest
     environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
 
@@ -422,6 +427,11 @@ jobs:
   deploy:
     name: Deploy
     needs: [detect-config, prepare-env, build]
+    if: |
+      always() &&
+      needs.detect-config.result == 'success' &&
+      needs.prepare-env.result == 'success' &&
+      needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
 
