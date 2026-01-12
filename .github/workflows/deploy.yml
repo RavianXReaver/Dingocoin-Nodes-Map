@@ -343,7 +343,6 @@ jobs:
   build:
     name: Build Images
     needs: [detect-config, prepare-env]
-    if: needs.prepare-env.result == 'success'
     runs-on: ubuntu-latest
     environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
 
@@ -423,7 +422,6 @@ jobs:
   deploy:
     name: Deploy
     needs: [detect-config, prepare-env, build]
-    if: needs.prepare-env.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
 
