@@ -64,6 +64,8 @@ on:
 env:
   REGISTRY: ghcr.io
   NODE_VERSION: '20'
+  # GitHub environment name for deployment secrets/variables (customize if needed)
+  # Set DEPLOYMENT_ENVIRONMENT variable in GitHub to override default 'production'
 
 jobs:
   detect-config:
@@ -420,7 +422,7 @@ jobs:
     name: Deploy
     needs: [detect-config, prepare-env, build]
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
 
     steps:
       - uses: actions/checkout@v4
