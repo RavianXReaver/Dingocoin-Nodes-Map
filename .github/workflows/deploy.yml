@@ -64,6 +64,7 @@ on:
 env:
   REGISTRY: ghcr.io
   NODE_VERSION: '20'
+  DEPLOYMENT_ENVIRONMENT: production  # GitHub environment name for secrets/vars
 
 jobs:
   detect-config:
@@ -226,7 +227,7 @@ jobs:
     needs: [detect-config, auto-detect]
     if: always() && needs.detect-config.result == 'success' && (needs.auto-detect.result == 'success' || needs.auto-detect.result == 'skipped')
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
     outputs:
       build_args: ${{ steps.extract.outputs.build_args }}
 
@@ -344,7 +345,7 @@ jobs:
     needs: [detect-config, prepare-env]
     if: needs.prepare-env.result == 'success'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -424,7 +425,7 @@ jobs:
     needs: [detect-config, prepare-env, build]
     if: needs.prepare-env.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ vars.DEPLOYMENT_ENVIRONMENT || 'production' }}
 
     steps:
       - uses: actions/checkout@v4
