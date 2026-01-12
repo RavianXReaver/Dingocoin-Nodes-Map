@@ -2,84 +2,162 @@
 # CADDYFILE FOR HOST-INSTALLED CADDY
 # ============================================
 # Use this file if you have Caddy installed on your HOST system (not in Docker)
-# and want to reverse proxy to AtlasP2P running in containers.
+# and want to reverse proxy to your node map application running in containers.
 #
 # This is for: make prod-docker-no-caddy or make prod-cloud-no-caddy
 #
 # Installation:
-#   1. Copy this file to your Caddy config directory:
-#      sudo cp docker/Caddyfile.host.example /etc/caddy/sites/atlasp2p.Caddyfile
-#   2. Edit the domain name below
-#   3. Reload Caddy: sudo systemctl reload caddy
+#   1. Customize domains and ports below based on your project.config.yaml and .env
+#   2. Copy to your Caddy sites directory:
+#      sudo cp docker/Caddyfile.host.example /etc/caddy/sites/nodesmap.Caddyfile
+#   3. Ensure /etc/caddy/Caddyfile imports this file:
+#      import /etc/caddy/sites/*.Caddyfile
+#   4. Reload Caddy: sudo systemctl reload caddy
 #
-# Requirements:
-#   - Caddy 2.x installed on host (not in container)
-#   - AtlasP2P running with: make prod-docker-no-caddy
-#   - Web container exposing port ${WEB_PORT:-4000}
+# ============================================
+# CONFIGURATION REFERENCE
+# ============================================
+# From project.config.yaml:
+#   - SITE_URL: https://nodes.example.com
+#   - API_EXTERNAL_URL: https://api.nodes.example.com
+#
+# From .env:
+#   - WEB_PORT: 4000 (web container port)
+#   - KONG_PORT: 4020 (kong/API gateway port, self-hosted only)
+#
+# Deployment modes:
+#   - Self-hosted (prod-docker-no-caddy): Web on :4000, API on :4020
+#   - Cloud mode (prod-cloud-no-caddy): Web on :4000, API is Supabase Cloud
 # ============================================
 
-# Replace with your actual domain
-nodes.example.com {
-    # Automatic HTTPS with Let's Encrypt
-    # No manual configuration needed!
+# ============================================
+# SCENARIO 1: Cloudflare Flexible TLS
+# ============================================
+# If using Cloudflare with Flexible TLS:
+# - Cloudflare terminates HTTPS, proxies to you as HTTP
+# - Set Cloudflare SSL/TLS mode: Flexible
+# - Turn OFF "Always Use HTTPS" to prevent redirect loops
+# - Use http:// blocks below (Cloudflare adds HTTPS)
+# ============================================
 
-    # Reverse proxy to web container
-    # Default port: 4000 (configurable via WEB_PORT in .env)
-    reverse_proxy localhost:4000
+# ================================
+# WEB APP (replace with your domain from project.config.yaml -> SITE_URL)
+# ================================
+http://nodes.example.com {
 
-    # Optional: Add custom headers
-    header {
-        # Security headers
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
-        Referrer-Policy "strict-origin-when-cross-origin"
-
-        # Remove server header
-        -Server
+    # --- Next.js static assets (aggressive caching) ---
+    handle /_next/static/* {
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Port 443
+        }
+        header Cache-Control "public, max-age=31536000, immutable"
     }
 
-    # Optional: Enable compression
-    encode gzip
+    # --- Public images ---
+    handle /images/* {
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Port 443
+        }
+        header Cache-Control "public, max-age=2592000"
+    }
 
-    # Optional: Custom error pages
-    handle_errors {
-        @502 expression {http.error.status_code} == 502
-        handle @502 {
-            respond "Service temporarily unavailable. Please try again in a moment." 502
+    # --- Favicon ---
+    handle /favicon.ico {
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Port 443
+        }
+        header Cache-Control "public, max-age=86400"
+    }
+
+    # --- Catch-all: Next.js app ---
+    handle {
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Port 443
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote_host}
         }
     }
 
-    # Access logs (optional)
-    log {
-        output file /var/log/caddy/atlasp2p-access.log
-        format json
+    # --- Security headers (NO HSTS for Flexible TLS) ---
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
     }
+
+    encode gzip
+}
+
+# ================================
+# API (replace with your domain from project.config.yaml -> API_EXTERNAL_URL)
+# ================================
+# ONLY NEEDED FOR SELF-HOSTED MODE (prod-docker-no-caddy)
+# Comment this out if using Cloud mode (API is on Supabase Cloud)
+# ================================
+http://api.nodes.example.com {
+    # Proxy to Kong API Gateway (Supabase)
+    # Port from .env: KONG_PORT=4020
+    reverse_proxy localhost:4020 {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Port 443
+        header_up X-Forwarded-For {remote}
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+
+    # --- Security headers ---
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+    }
+
+    encode gzip
 }
 
 # ============================================
-# EXAMPLE: Multi-domain setup
+# SCENARIO 2: Direct HTTPS (No Cloudflare)
 # ============================================
-# If you're running multiple blockchain nodes on the same server:
+# If NOT using Cloudflare and want Caddy to handle HTTPS directly:
+# - Replace http:// with your bare domain
+# - Caddy will automatically get Let's Encrypt certificates
+# - Ensure ports 80 and 443 are open
+# - Example:
 #
-# nodes.bitcoin.org {
+# nodes.example.com {
 #     reverse_proxy localhost:4000
+#     encode gzip
 # }
 #
-# nodes.litecoin.org {
-#     reverse_proxy localhost:4100
-# }
-#
-# nodes.dogecoin.org {
-#     reverse_proxy localhost:4200
+# api.nodes.example.com {
+#     reverse_proxy localhost:4020
+#     encode gzip
 # }
 # ============================================
 
 # ============================================
-# EXAMPLE: Redirect www to non-www
+# SCENARIO 3: Multi-chain server
 # ============================================
-# www.nodes.example.com {
-#     redir https://nodes.example.com{uri} permanent
+# If running multiple forks on the same server with different ports:
+#
+# http://nodes.bitcoin.org {
+#     reverse_proxy localhost:4000
+# }
+#
+# http://nodes.dingocoin.org {
+#     reverse_proxy localhost:4100
+# }
+#
+# http://nodes.dogecoin.org {
+#     reverse_proxy localhost:4200
 # }
 # ============================================
 
@@ -87,22 +165,24 @@ nodes.example.com {
 # TROUBLESHOOTING
 # ============================================
 #
-# Issue: "dial tcp [::1]:4000: connect: connection refused"
-# Fix: Verify web container is running and port is exposed:
-#      docker ps | grep atlasp2p-web
-#      docker port atlasp2p-web
-#
 # Issue: "502 Bad Gateway"
-# Fix: Check web container logs:
-#      docker logs atlasp2p-web
+# Fix: Verify containers are running and ports match .env:
+#      docker compose ps
+#      docker compose logs web
+#      docker compose logs kong
 #
-# Issue: "certificate error"
+# Issue: "connection refused"
+# Fix: Check if port is exposed in docker-compose:
+#      docker port atlasp2p-web
+#      Should show: 0.0.0.0:4000->3000/tcp
+#
+# Issue: "certificate error" (Direct HTTPS mode)
 # Fix: Ensure ports 80 and 443 are open:
 #      sudo ufw allow 80/tcp
 #      sudo ufw allow 443/tcp
 #
-# Issue: Multiple Caddy instances
-# Fix: Stop container Caddy if running:
-#      docker compose down caddy
-#      Use: make prod-docker-no-caddy
+# Issue: Redirect loop (Cloudflare Flexible TLS)
+# Fix: In Cloudflare dashboard:
+#      - Set SSL/TLS mode to "Flexible"
+#      - Turn OFF "Always Use HTTPS"
 # ============================================
