@@ -353,12 +353,33 @@ jobs:
           # Verify file exists
           ls -lh .env.production
           echo "File size: $(wc -l < .env.production) lines"
+          echo "File content preview:"
+          head -5 .env.production
+
+      - name: Debug before upload
+        run: |
+          echo "==> Current working directory:"
+          pwd
+          echo "==> Files in current directory:"
+          ls -la
+          echo "==> Checking .env.production:"
+          if [ -f .env.production ]; then
+            echo "File exists!"
+            ls -lh .env.production
+            echo "First 10 lines:"
+            head -10 .env.production
+          else
+            echo "File does NOT exist!"
+          fi
+          echo "==> Workspace directory:"
+          echo "${{ github.workspace }}"
+          ls -la "${{ github.workspace }}" | grep -E '\.env|production' || echo "No .env files found"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: environment
-          path: .env.production
+          path: ${{ github.workspace }}/.env.production
           retention-days: 1
 
   build:
