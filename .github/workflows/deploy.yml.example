@@ -317,15 +317,29 @@ jobs:
       - name: Inject registry configuration
         if: steps.resolve.outputs.secrets_source != 'manual'
         run: |
-          # Use repository names from config (no construction)
+          # Extract IMAGE_PREFIX from repository names for docker-compose compatibility
+          REPO_WEB="${{ needs.detect-config.outputs.repository_web }}"
+
+          # For docker-compose: ${IMAGE_PREFIX}web where web is appended by compose file
+          # Strip 'web' suffix to get prefix
+          IMAGE_PREFIX="${REPO_WEB%web}"
+
+          # For ECR: REGISTRY is set by host after ECR login
+          # For GHCR: REGISTRY is ghcr.io
+          if [ "${{ needs.detect-config.outputs.registry_type }}" = "ghcr" ]; then
+            REGISTRY="ghcr.io"
+          else
+            REGISTRY="SET_BY_HOST_ECR_LOGIN"
+          fi
+
           cat >> .env.production << EOF
 
           # Docker Registry Configuration (injected by CI/CD)
           REGISTRY_TYPE=${{ needs.detect-config.outputs.registry_type }}
           REGISTRY_PUBLIC=${{ needs.detect-config.outputs.registry_public }}
           REGISTRY_REGION=${{ needs.detect-config.outputs.registry_region }}
-          REPOSITORY_WEB=${{ needs.detect-config.outputs.repository_web }}
-          REPOSITORY_CRAWLER=${{ needs.detect-config.outputs.repository_crawler }}
+          REGISTRY=${REGISTRY}
+          IMAGE_PREFIX=${IMAGE_PREFIX}
           IMAGE_TAG=latest
           EOF
 
