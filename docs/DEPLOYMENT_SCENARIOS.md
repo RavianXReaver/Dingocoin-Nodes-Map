@@ -218,12 +218,49 @@ SMTP_PORT=587
 SMTP_USER=apikey
 SMTP_PASS=your-key
 
-# Start (with Caddy)
+# Start (with container Caddy)
 make prod-docker
 
-# OR start without container Caddy (if host Caddy installed)
+# OR start without container Caddy (if host Caddy already installed)
+# See "Host Caddy Setup" below for one-time configuration
 make prod-docker-no-caddy
 ```
+
+**Host Caddy Setup (One-Time, Manual):**
+
+If using `make prod-docker-no-caddy`, you must configure host Caddy first:
+
+```bash
+# 1. Copy and customize the template
+cp docker/Caddyfile.host.example /tmp/nodesmap.Caddyfile
+
+# 2. Edit with your actual values (from .env):
+#    - SITE_URL → nodes.yourchain.com
+#    - API_EXTERNAL_URL → api.nodes.yourchain.com
+#    - WEB_PORT → localhost:4000
+#    - KONG_PORT → localhost:4020
+nano /tmp/nodesmap.Caddyfile
+
+# 3. Deploy to server
+sudo cp /tmp/nodesmap.Caddyfile /etc/caddy/sites/yourproject.Caddyfile
+sudo chown root:root /etc/caddy/sites/yourproject.Caddyfile
+sudo chmod 644 /etc/caddy/sites/yourproject.Caddyfile
+
+# 4. Ensure main Caddyfile imports sites directory
+# Add to /etc/caddy/Caddyfile if not already present:
+#   import /etc/caddy/sites/*.Caddyfile
+
+# 5. Reload Caddy
+sudo systemctl reload caddy
+sudo systemctl status caddy
+```
+
+**Note:** This is infrastructure config (like nginx), separate from app deployment.
+CI/CD NEVER touches this file. If you change ports later, update both:
+- AWS SSM Parameter Store (for deployments)
+- /etc/caddy/sites/yourproject.Caddyfile (infrastructure)
+
+See `docker/Caddyfile.host.example` for scenarios and troubleshooting.
 
 **Setup (Automated CI/CD):**
 ```bash

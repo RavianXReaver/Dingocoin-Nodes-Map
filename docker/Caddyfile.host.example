@@ -1,47 +1,74 @@
 # ============================================
 # CADDYFILE FOR HOST-INSTALLED CADDY
 # ============================================
-# Use this file if you have Caddy installed on your HOST system (not in Docker)
-# and want to reverse proxy to your node map application running in containers.
+# This is a ONE-TIME INFRASTRUCTURE SETUP template.
+# Use this when you have Caddy installed on your HOST system (not in Docker)
+# and want to reverse proxy to your node map application.
 #
-# This is for: make prod-docker-no-caddy or make prod-cloud-no-caddy
-#
-# Installation:
-#   1. Customize domains and ports below based on your project.config.yaml and .env
-#   2. Copy to your Caddy sites directory:
-#      sudo cp docker/Caddyfile.host.example /etc/caddy/sites/nodesmap.Caddyfile
-#   3. Ensure /etc/caddy/Caddyfile imports this file:
-#      import /etc/caddy/sites/*.Caddyfile
-#   4. Reload Caddy: sudo systemctl reload caddy
+# IMPORTANT: This file is NEVER auto-generated or deployed by CI/CD.
+# Infrastructure config (like nginx config) is separate from application deployment.
 #
 # ============================================
-# CONFIGURATION REFERENCE
+# SETUP INSTRUCTIONS
 # ============================================
-# From project.config.yaml:
-#   - SITE_URL: https://nodes.example.com
-#   - API_EXTERNAL_URL: https://api.nodes.example.com
+# 1. Copy this file and customize it with your actual values:
+#    cp docker/Caddyfile.host.example /tmp/nodesmap.Caddyfile
 #
-# From .env:
-#   - WEB_PORT: 4000 (web container port)
-#   - KONG_PORT: 4020 (kong/API gateway port, self-hosted only)
+# 2. Replace ALL placeholders below:
+#    FROM .env (or AWS SSM Parameter Store):
+#      - SITE_URL → Extract domain (e.g., nodes.dingocoin.org)
+#      - API_EXTERNAL_URL → Extract domain (e.g., api.nodes.dingocoin.org)
+#      - WEB_PORT → Container host port (default: 4000)
+#      - KONG_PORT → Kong host port (default: 4020)
 #
-# Deployment modes:
-#   - Self-hosted (prod-docker-no-caddy): Web on :4000, API on :4020
-#   - Cloud mode (prod-cloud-no-caddy): Web on :4000, API is Supabase Cloud
+#    FROM deployment scenario:
+#      - Choose http:// (Cloudflare Flexible TLS) or bare domain (Direct HTTPS)
+#      - Comment out API block if using Cloud mode (Supabase Cloud)
+#
+# 3. Deploy to server (manual, one-time):
+#    sudo cp /tmp/nodesmap.Caddyfile /etc/caddy/sites/nodesmap.Caddyfile
+#    sudo chown root:root /etc/caddy/sites/nodesmap.Caddyfile
+#    sudo chmod 644 /etc/caddy/sites/nodesmap.Caddyfile
+#    sudo systemctl reload caddy
+#
+# 4. Verify /etc/caddy/Caddyfile imports your file:
+#    import /etc/caddy/sites/*.Caddyfile
+#
+# ============================================
+# IF YOU CHANGE PORTS LATER
+# ============================================
+# You must update BOTH places:
+# 1. AWS SSM Parameter Store (for automated deployments)
+# 2. This Caddyfile (infrastructure config)
+#
+# Ports are stored in SSM because:
+# - Multi-deployment support (multiple forks on same server)
+# - Environment-specific values (dev vs prod)
+# - Infrastructure concern (like DB passwords)
 # ============================================
 
 # ============================================
 # SCENARIO 1: Cloudflare Flexible TLS
 # ============================================
-# If using Cloudflare with Flexible TLS:
-# - Cloudflare terminates HTTPS, proxies to you as HTTP
-# - Set Cloudflare SSL/TLS mode: Flexible
-# - Turn OFF "Always Use HTTPS" to prevent redirect loops
-# - Use http:// blocks below (Cloudflare adds HTTPS)
+# WHEN TO USE:
+# - Using Cloudflare as CDN/DNS
+# - Cloudflare SSL/TLS mode: Flexible
+# - Cloudflare terminates HTTPS, proxies HTTP to you
+#
+# CLOUDFLARE CONFIGURATION REQUIRED:
+# - SSL/TLS mode: Flexible
+# - Always Use HTTPS: OFF (prevent redirect loops)
+# - Proxy status: Enabled (orange cloud)
+#
+# PLACEHOLDERS TO REPLACE:
+# - nodes.example.com → Your actual domain from SITE_URL
+# - api.nodes.example.com → Your actual domain from API_EXTERNAL_URL
+# - localhost:4000 → WEB_PORT from .env (default: 4000)
+# - localhost:4020 → KONG_PORT from .env (default: 4020)
 # ============================================
 
 # ================================
-# WEB APP (replace with your domain from project.config.yaml -> SITE_URL)
+# WEB APP
 # ================================
 http://nodes.example.com {
 
@@ -97,14 +124,14 @@ http://nodes.example.com {
 }
 
 # ================================
-# API (replace with your domain from project.config.yaml -> API_EXTERNAL_URL)
+# API (Supabase Kong Gateway)
 # ================================
-# ONLY NEEDED FOR SELF-HOSTED MODE (prod-docker-no-caddy)
-# Comment this out if using Cloud mode (API is on Supabase Cloud)
+# ONLY FOR SELF-HOSTED MODE (prod-docker-no-caddy)
+# If using Cloud mode (prod-cloud-no-caddy), COMMENT THIS OUT
+# because your API is hosted on Supabase Cloud, not locally.
 # ================================
 http://api.nodes.example.com {
     # Proxy to Kong API Gateway (Supabase)
-    # Port from .env: KONG_PORT=4020
     reverse_proxy localhost:4020 {
         header_up X-Forwarded-Proto https
         header_up X-Forwarded-Host {host}
@@ -126,38 +153,66 @@ http://api.nodes.example.com {
 # ============================================
 # SCENARIO 2: Direct HTTPS (No Cloudflare)
 # ============================================
-# If NOT using Cloudflare and want Caddy to handle HTTPS directly:
-# - Replace http:// with your bare domain
-# - Caddy will automatically get Let's Encrypt certificates
-# - Ensure ports 80 and 443 are open
-# - Example:
+# WHEN TO USE:
+# - NOT using Cloudflare
+# - Want Caddy to handle HTTPS directly via Let's Encrypt
+# - Need automatic SSL certificates
+#
+# REQUIREMENTS:
+# - Ports 80 and 443 must be open
+# - DNS A records pointing to your server
+# - Valid email for Let's Encrypt notifications
+#
+# SETUP:
+# Replace http:// blocks above with bare domains.
+# Caddy will automatically get Let's Encrypt certificates.
+# Add HSTS header for security.
+#
+# EXAMPLE:
 #
 # nodes.example.com {
+#     # Same handle blocks as above...
 #     reverse_proxy localhost:4000
+#
+#     # Add HSTS for Direct HTTPS
+#     header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 #     encode gzip
 # }
 #
 # api.nodes.example.com {
 #     reverse_proxy localhost:4020
+#     header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 #     encode gzip
 # }
 # ============================================
 
 # ============================================
-# SCENARIO 3: Multi-chain server
+# SCENARIO 3: Multi-Chain Server
 # ============================================
-# If running multiple forks on the same server with different ports:
+# WHEN TO USE:
+# - Running multiple blockchain node maps on the same server
+# - Each fork on different ports
+#
+# EXAMPLE:
+# Each project gets its own port range:
+# - Dingocoin: WEB_PORT=4000, KONG_PORT=4020
+# - Bitcoin:   WEB_PORT=5000, KONG_PORT=5020
+# - Dogecoin:  WEB_PORT=6000, KONG_PORT=6020
 #
 # http://nodes.bitcoin.org {
-#     reverse_proxy localhost:4000
+#     reverse_proxy localhost:5000
 # }
 #
-# http://nodes.dingocoin.org {
-#     reverse_proxy localhost:4100
+# http://api.nodes.bitcoin.org {
+#     reverse_proxy localhost:5020
 # }
 #
 # http://nodes.dogecoin.org {
-#     reverse_proxy localhost:4200
+#     reverse_proxy localhost:6000
+# }
+#
+# http://api.nodes.dogecoin.org {
+#     reverse_proxy localhost:6020
 # }
 # ============================================
 
@@ -167,12 +222,12 @@ http://api.nodes.example.com {
 #
 # Issue: "502 Bad Gateway"
 # Fix: Verify containers are running and ports match .env:
-#      docker compose ps
+#      cd /apps/your-project && docker compose ps
 #      docker compose logs web
 #      docker compose logs kong
 #
 # Issue: "connection refused"
-# Fix: Check if port is exposed in docker-compose:
+# Fix: Check if ports are exposed:
 #      docker port atlasp2p-web
 #      Should show: 0.0.0.0:4000->3000/tcp
 #
@@ -185,4 +240,13 @@ http://api.nodes.example.com {
 # Fix: In Cloudflare dashboard:
 #      - Set SSL/TLS mode to "Flexible"
 #      - Turn OFF "Always Use HTTPS"
+#
+# Issue: Changes not taking effect
+# Fix: Reload Caddy after editing:
+#      sudo systemctl reload caddy
+#      sudo systemctl status caddy
+#
+# Issue: Syntax errors
+# Fix: Validate config before reloading:
+#      sudo caddy validate --config /etc/caddy/Caddyfile
 # ============================================
