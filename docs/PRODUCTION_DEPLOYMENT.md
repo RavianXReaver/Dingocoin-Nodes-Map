@@ -143,11 +143,34 @@ make prod-cloud
 make prod-cloud-no-caddy
 ```
 
+**Host Caddy Setup (if using -no-caddy):**
+
+If you're using `make prod-docker-no-caddy` or `make prod-cloud-no-caddy`, you must set up host Caddy first:
+
+```bash
+# 1. Copy and customize the template
+cp docker/Caddyfile.host.example /tmp/myproject.Caddyfile
+
+# 2. Edit with your actual domains/ports (from .env)
+nano /tmp/myproject.Caddyfile
+
+# 3. Deploy to server
+sudo cp /tmp/myproject.Caddyfile /etc/caddy/sites/myproject.Caddyfile
+sudo systemctl reload caddy
+```
+
+**This is ONE-TIME infrastructure setup, NOT deployed by CI/CD.**
+
+See `docker/Caddyfile.host.example` for complete instructions and `docs/DEPLOYMENT_SCENARIOS.md` for details.
+
+---
+
 **Note:** Manual deployment requires:
 - Docker and Docker Compose installed
 - All secrets configured in .env
 - DNS pointing to server (for SSL)
 - Manual updates on every code change
+- Host Caddy configured (if using -no-caddy targets)
 
 For automated deployments with CI/CD, see Option 1 above.
 

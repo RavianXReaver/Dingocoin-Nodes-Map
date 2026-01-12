@@ -750,7 +750,8 @@ make prod-docker
 # Start production, expose web on port 4000
 make prod-docker-no-caddy
 
-# Configure your host Caddy to proxy to localhost:4000
+# See docker/Caddyfile.host.example for host Caddy setup
+# One-time infrastructure config (not deployed by CI/CD)
 ```
 
 **Cloud mode (Supabase Cloud database):**
