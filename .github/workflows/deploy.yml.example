@@ -82,7 +82,8 @@ jobs:
       registry_type: ${{ steps.detect.outputs.registry_type }}
       registry_public: ${{ steps.detect.outputs.registry_public }}
       registry_region: ${{ steps.detect.outputs.registry_region }}
-      chain: ${{ steps.detect.outputs.chain }}
+      repository_web: ${{ steps.detect.outputs.repository_web }}
+      repository_crawler: ${{ steps.detect.outputs.repository_crawler }}
 
     steps:
       - uses: actions/checkout@v4
@@ -115,15 +116,13 @@ jobs:
           REGISTRY_TYPE=$(yq '.deployment.registry.type' "$CONFIG_FILE")
           REGISTRY_PUBLIC=$(yq '.deployment.registry.public' "$CONFIG_FILE")
           REGISTRY_REGION=$(yq '.deployment.registry.region' "$CONFIG_FILE")
-
-          # Chain name for ECR repository naming
-          CHAIN=$(yq '.chain' "$CONFIG_FILE")
+          REPOSITORY_WEB=$(yq '.deployment.registry.repositories.web' "$CONFIG_FILE")
+          REPOSITORY_CRAWLER=$(yq '.deployment.registry.repositories.crawler' "$CONFIG_FILE")
 
           # Defaults if not set
           [ "$REGISTRY_TYPE" = "null" ] && REGISTRY_TYPE="ghcr"
           [ "$REGISTRY_PUBLIC" = "null" ] && REGISTRY_PUBLIC="true"
           [ "$REGISTRY_REGION" = "null" ] && REGISTRY_REGION="us-east-1"
-          [ "$CHAIN" = "null" ] && CHAIN="atlasp2p"
 
           # Apply overrides from workflow inputs (safe - enum restricted)
           [ -n "$OVERRIDE_MODE" ] && DEPLOYMENT_MODE="$OVERRIDE_MODE"
@@ -159,7 +158,8 @@ jobs:
           echo "registry_type=$REGISTRY_TYPE" >> $GITHUB_OUTPUT
           echo "registry_public=$REGISTRY_PUBLIC" >> $GITHUB_OUTPUT
           echo "registry_region=$REGISTRY_REGION" >> $GITHUB_OUTPUT
-          echo "chain=$CHAIN" >> $GITHUB_OUTPUT
+          echo "repository_web=$REPOSITORY_WEB" >> $GITHUB_OUTPUT
+          echo "repository_crawler=$REPOSITORY_CRAWLER" >> $GITHUB_OUTPUT
 
           # Summary
           echo "### 🎯 Deployment Configuration" >> $GITHUB_STEP_SUMMARY
@@ -317,27 +317,15 @@ jobs:
       - name: Inject registry configuration
         if: steps.resolve.outputs.secrets_source != 'manual'
         run: |
-          # Add registry vars for docker-compose on host
-          REPO_LOWER=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-          CHAIN_LOWER=$(echo "${{ needs.detect-config.outputs.chain }}" | tr '[:upper:]' '[:lower:]')
-
-          if [ "${{ needs.detect-config.outputs.registry_type }}" = "ghcr" ]; then
-            REGISTRY="ghcr.io/${{ github.repository_owner }}"
-            IMAGE_PREFIX="${REPO_LOWER}-"
-          else
-            # ECR URL pattern (actual registry set on host after ECR login)
-            REGISTRY="SET_BY_HOST_ECR_LOGIN"
-            IMAGE_PREFIX="${CHAIN_LOWER}/nodes-map-"
-          fi
-
+          # Use repository names from config (no construction)
           cat >> .env.production << EOF
 
           # Docker Registry Configuration (injected by CI/CD)
           REGISTRY_TYPE=${{ needs.detect-config.outputs.registry_type }}
           REGISTRY_PUBLIC=${{ needs.detect-config.outputs.registry_public }}
           REGISTRY_REGION=${{ needs.detect-config.outputs.registry_region }}
-          REGISTRY=${REGISTRY}
-          IMAGE_PREFIX=${IMAGE_PREFIX}
+          REPOSITORY_WEB=${{ needs.detect-config.outputs.repository_web }}
+          REPOSITORY_CRAWLER=${{ needs.detect-config.outputs.repository_crawler }}
           IMAGE_TAG=latest
           EOF
 
@@ -388,25 +376,20 @@ jobs:
       - name: Set registry URLs
         id: registry
         run: |
-          # Lowercase for Docker registry compatibility
-          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          REPO_LOWER=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-          CHAIN_LOWER=$(echo "${{ needs.detect-config.outputs.chain }}" | tr '[:upper:]' '[:lower:]')
-
+          # Use repository names from config (no construction)
           if [ "${{ needs.detect-config.outputs.registry_type }}" = "ghcr" ]; then
-            # GHCR: ghcr.io/owner/repo-service:latest
-            REGISTRY="ghcr.io/${OWNER_LOWER}"
-            IMAGE_PREFIX="${REPO_LOWER}-"
+            REGISTRY="ghcr.io"
+            WEB_IMAGE="${REGISTRY}/${{ needs.detect-config.outputs.repository_web }}:latest"
+            CRAWLER_IMAGE="${REGISTRY}/${{ needs.detect-config.outputs.repository_crawler }}:latest"
           else
-            # ECR: 123456789.dkr.ecr.region.amazonaws.com/chain/nodes-map-service:latest
+            # ECR
             REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-            IMAGE_PREFIX="${CHAIN_LOWER}/nodes-map-"
+            WEB_IMAGE="${REGISTRY}/${{ needs.detect-config.outputs.repository_web }}:latest"
+            CRAWLER_IMAGE="${REGISTRY}/${{ needs.detect-config.outputs.repository_crawler }}:latest"
           fi
 
-          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
-          echo "image_prefix=${IMAGE_PREFIX}" >> $GITHUB_OUTPUT
-          echo "web_image=${REGISTRY}/${IMAGE_PREFIX}web:latest" >> $GITHUB_OUTPUT
-          echo "crawler_image=${REGISTRY}/${IMAGE_PREFIX}crawler:latest" >> $GITHUB_OUTPUT
+          echo "web_image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
+          echo "crawler_image=${CRAWLER_IMAGE}" >> $GITHUB_OUTPUT
 
       - name: Build web
         uses: docker/build-push-action@v6
