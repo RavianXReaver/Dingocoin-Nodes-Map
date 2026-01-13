@@ -77,7 +77,7 @@ themeConfig:
   secondaryColor: "#ff6b35"
   accentColor: "#ffa500"
   logo: /logos/dingocoin.png
-  favicon: /logos/dingocoin-favicon.png
+  favicon: /logos/favicon.ico
 
   # UI semantic colors (used for buttons, badges, states)
   semanticColors:
