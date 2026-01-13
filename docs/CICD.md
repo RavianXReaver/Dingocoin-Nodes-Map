@@ -76,16 +76,34 @@ sudo usermod -aG docker $USER
 
 #### **Required GitHub Variables** (Settings → Secrets and variables → Actions → Variables)
 
+**Deployment Variables:**
 ```bash
 DEPLOY_USER=ubuntu              # SSH username
 DEPLOY_HOST=nodes.example.com   # Server IP or domain
 DEPLOY_PATH=/opt/atlasp2p       # Deployment directory on server
 ```
 
+**Registry Variables (for ECR):**
+```bash
+REGISTRY_TYPE=ecr                        # Registry type: ecr or ghcr
+REGISTRY_PUBLIC=false                    # Whether registry is public (ghcr only)
+AWS_REGION=us-west-2                     # AWS region for ECR
+ECR_REPOSITORY_WEB=dingocoin/nodes-map-web        # ECR repository name for web
+ECR_REPOSITORY_CRAWLER=dingocoin/nodes-map-crawler # ECR repository name for crawler
+```
+
+**Note:** Registry variables can also be defined in `project.config.yaml`, but GitHub environment variables take precedence. Using GitHub variables is recommended for reliability and matches the Dingocoin-Ecosystem deployment pattern.
+
 #### **Required GitHub Secrets** (Settings → Secrets and variables → Actions → Secrets)
 
 ```bash
 SSH_PRIVATE_KEY=<your-private-key>  # SSH key for server access
+```
+
+**For ECR (if using AWS Elastic Container Registry):**
+```bash
+AWS_ACCESS_KEY_ID=AKIA...            # IAM user with ECR permissions
+AWS_SECRET_ACCESS_KEY=...            # Secret access key
 ```
 
 **Generate SSH key:**
@@ -222,7 +240,17 @@ nano .env  # Add all secrets manually
 
 ## 🐳 Docker Registry Configuration
 
-AtlasP2P supports **two Docker registry options** for production deployments:
+AtlasP2P supports **two Docker registry options** for production deployments.
+
+**Configuration Priority:**
+1. **GitHub Environment Variables** (Recommended) - Set in GitHub Settings → Environments → Production → Variables
+2. **project.config.yaml** (Fallback) - Used if GitHub variables not set
+
+**Why GitHub Variables?**
+- ✅ More reliable (no YAML parsing issues)
+- ✅ Deployment-specific (separate from public config)
+- ✅ Matches proven working pattern (Dingocoin-Ecosystem)
+- ✅ Easier to change without code commits
 
 ### Option 1: GitHub Container Registry (GHCR) - Recommended
 
@@ -264,25 +292,32 @@ ghcr.io/your-org/atlasp2p-crawler:latest
 
 **Best for:** Enterprise deployments, teams using AWS infrastructure
 
-**Configuration:**
+**Configuration (GitHub Variables - Recommended):**
+
+Set these in GitHub Settings → Environments → Production → Variables:
+```bash
+REGISTRY_TYPE=ecr                              # Registry type
+AWS_REGION=us-west-2                           # AWS region
+ECR_REPOSITORY_WEB=dingocoin/nodes-map-web     # Repository name for web
+ECR_REPOSITORY_CRAWLER=dingocoin/nodes-map-crawler  # Repository name for crawler
+```
+
+Set these in GitHub Settings → Secrets:
+```bash
+AWS_ACCESS_KEY_ID=AKIA...                      # IAM user with ECR permissions
+AWS_SECRET_ACCESS_KEY=...                      # Secret access key
+```
+
+**Alternative Configuration (project.config.yaml - Fallback):**
 ```yaml
-# config/project.config.yaml
+# config/project.config.yaml (used if GitHub variables not set)
 deployment:
   registry:
     type: ecr
-    region: us-east-1  # Your AWS region
-    # public: ignored (ECR images are always private)
-```
-
-**Required GitHub Secrets (for CI/CD):**
-```bash
-AWS_ACCESS_KEY_ID=AKIA...       # IAM user with ECR push permissions
-AWS_SECRET_ACCESS_KEY=...       # Secret access key
-```
-
-**Required GitHub Variables:**
-```bash
-AWS_REGION=us-east-1            # ECR region
+    region: us-west-2
+    repositories:
+      web: dingocoin/nodes-map-web
+      crawler: dingocoin/nodes-map-crawler
 ```
 
 **Image naming:**
@@ -340,52 +375,53 @@ aws configure
 
 **To switch from GHCR to ECR:**
 
-1. **Update config:**
+**Recommended Method (GitHub Variables):**
+1. Go to GitHub Settings → Environments → Production → Variables
+2. Add/update these variables:
+   ```bash
+   REGISTRY_TYPE=ecr
+   AWS_REGION=us-west-2
+   ECR_REPOSITORY_WEB=dingocoin/nodes-map-web
+   ECR_REPOSITORY_CRAWLER=dingocoin/nodes-map-crawler
+   ```
+3. Add AWS credentials to Secrets:
+   ```bash
+   AWS_ACCESS_KEY_ID=AKIA...
+   AWS_SECRET_ACCESS_KEY=...
+   ```
+4. Push any commit to trigger deployment - workflow automatically uses ECR!
+
+**Alternative Method (config file):**
+1. Update `project.config.yaml`:
    ```yaml
    deployment:
      registry:
        type: ecr
-       region: us-east-1
+       region: us-west-2
+       repositories:
+         web: dingocoin/nodes-map-web
+         crawler: dingocoin/nodes-map-crawler
    ```
-
-2. **Add GitHub Secrets:**
-   ```bash
-   AWS_ACCESS_KEY_ID=...
-   AWS_SECRET_ACCESS_KEY=...
-   ```
-
-3. **Add GitHub Variables:**
-   ```bash
-   AWS_REGION=us-east-1
-   ```
-
-4. **Commit and push:**
-   ```bash
-   git add config/project.config.yaml
-   git commit -m "Switch to ECR registry"
-   git push origin master
-   ```
-
-5. **Next deployment:** Workflow automatically uses ECR!
+2. Commit and push
+3. Add AWS credentials to GitHub Secrets (if not already added)
 
 **To switch from ECR to GHCR:**
 
-1. **Update config:**
+**Recommended Method (GitHub Variables):**
+1. Go to GitHub Settings → Environments → Production → Variables
+2. Update `REGISTRY_TYPE=ghcr`
+3. Optionally add `REGISTRY_PUBLIC=true`
+4. Push any commit - workflow automatically uses GHCR!
+
+**Alternative Method (config file):**
+1. Update `project.config.yaml`:
    ```yaml
    deployment:
      registry:
        type: ghcr
        public: true
    ```
-
-2. **Commit and push:**
-   ```bash
-   git add config/project.config.yaml
-   git commit -m "Switch to GHCR registry"
-   git push origin master
-   ```
-
-3. **Next deployment:** Workflow automatically uses GHCR!
+2. Commit and push
 
 ### Registry Variables Injected to .env
 
@@ -453,10 +489,43 @@ aws ecr create-repository --repository-name atlasp2p/crawler --region us-east-1
 
 #### "Invalid registry type"
 
-**Check config:**
+**Check GitHub variables:**
+```bash
+# GitHub → Settings → Environments → Production → Variables
+REGISTRY_TYPE=ecr  # Must be exactly "ecr" or "ghcr" (lowercase)
+```
+
+**Or check config:**
 ```yaml
 registry:
   type: ghcr  # Must be exactly "ghcr" or "ecr" (lowercase)
+```
+
+#### "Images going to GHCR instead of ECR"
+
+This happens when registry configuration isn't being read correctly.
+
+**Solution 1: Use GitHub Environment Variables (Recommended)**
+```bash
+# GitHub → Settings → Environments → Production → Variables
+REGISTRY_TYPE=ecr
+AWS_REGION=us-west-2
+ECR_REPOSITORY_WEB=your-org/nodes-map-web
+ECR_REPOSITORY_CRAWLER=your-org/nodes-map-crawler
+```
+
+**Solution 2: Debug workflow**
+```bash
+# Check workflow logs in GitHub Actions
+# Look for "detect-config" job output
+# Verify registry_type output is "ecr" not "ghcr"
+```
+
+**Solution 3: Verify Environment**
+```bash
+# Ensure you're using "Production" environment
+# GitHub → Settings → Environments → Production
+# Variable DEPLOYMENT_ENVIRONMENT=production (optional, defaults to production)
 ```
 
 ---
