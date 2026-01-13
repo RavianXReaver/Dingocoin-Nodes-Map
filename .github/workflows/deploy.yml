@@ -507,13 +507,22 @@ jobs:
             scp -i ~/.ssh/deploy_key deployment.env "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/.env"
           fi
 
+      - name: Set registry for deploy
+        id: deploy_registry
+        run: |
+          if [ "${{ needs.detect-config.outputs.registry_type }}" = "ecr" ]; then
+            echo "registry=${{ vars.ECR_REGISTRY }}" >> $GITHUB_OUTPUT
+          else
+            echo "registry=ghcr.io" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy
         env:
           SSH_USER: ${{ vars.SSH_USER }}
           SSH_HOST: ${{ vars.SSH_HOST }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           MAKE_TARGET: ${{ needs.detect-config.outputs.make_target }}
-          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY: ${{ steps.deploy_registry.outputs.registry }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
           BACKUP_ENABLED: ${{ needs.detect-config.outputs.backup_enabled }}
