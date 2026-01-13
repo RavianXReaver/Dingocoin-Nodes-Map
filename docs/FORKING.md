@@ -327,8 +327,11 @@ Expected output:
 ### 4. Run Crawler Continuously
 
 ```bash
-# Using Docker Compose
-docker compose --profile crawler up -d
+# Using Docker Compose (development)
+make docker-dev
+
+# Production deployment (crawler starts automatically)
+make prod-docker-no-caddy
 
 # Or using systemd service (production)
 # See deployment section

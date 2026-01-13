@@ -83,6 +83,7 @@ services:
 
   # Crawler for production
   # Uses pre-built image from CI/CD (GHCR or ECR)
+  # Crawler is a CORE service and runs by default
   crawler:
     build: null  # Remove build directive from base docker-compose.yml
     image: ${REGISTRY}/${IMAGE_PREFIX}crawler:${IMAGE_TAG:-latest}
@@ -92,8 +93,6 @@ services:
     volumes:
       - geoip-data:/app/data/geoip
     restart: unless-stopped
-    profiles:
-      - crawler
 
 volumes:
   geoip-data:

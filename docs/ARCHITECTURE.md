@@ -351,7 +351,11 @@ class ChainAdapter:
 
 **Docker Deployment**:
 ```bash
-docker compose --profile crawler up -d
+# Development mode (auto-starts all services including crawler)
+make docker-dev
+
+# Production mode (auto-starts all services including crawler)
+make prod-docker-no-caddy
 ```
 
 ## API Endpoints
