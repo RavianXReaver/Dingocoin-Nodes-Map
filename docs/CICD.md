@@ -719,6 +719,59 @@ caddy:
   mode: container  # Force container mode
 ```
 
+### Containers Using Old Configuration After Deployment
+
+**Symptom:** Deployment completes successfully, images are pulled from registry, but containers use old configuration (wrong ports, old seed nodes, etc.).
+
+**Root Cause:** Docker Compose with both `build:` and `image:` directives prefers building locally even when images are pulled. The `build: null` pattern doesn't fully remove the build context.
+
+**Verification:**
+```bash
+# On server, check which image is actually running:
+docker ps --format "table {{.Names}}\t{{.Image}}\t{{.ID}}"
+
+# Check image SHA - should match registry, not local build:
+docker inspect atlasp2p-web | grep -A5 "Image"
+docker images | grep atlasp2p-web
+
+# If images show different SHAs, containers are using local builds
+```
+
+**Solution (Already Fixed):**
+
+This issue was resolved in commit `741ea44` with the following changes:
+
+1. **docker-compose.prod.yml**: Fully redeclared `web` and `crawler` services with all necessary directives (volumes, depends_on, environment, healthcheck) to override base config without inheritance
+2. **Makefile**: Added `--no-build` flag to all production targets (`prod-docker`, `prod-docker-no-caddy`, `prod-cloud`, `prod-cloud-no-caddy`, `prod-restart`)
+
+**Manual Fix (if using older version):**
+
+```bash
+# On server:
+cd /opt/atlasp2p
+
+# Stop containers
+docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+
+# Remove locally built images
+docker rmi $(docker images --filter "reference=atlasp2p-*" -q) 2>/dev/null || true
+
+# Pull fresh images
+docker pull ${REGISTRY}/${IMAGE_PREFIX}web:latest
+docker pull ${REGISTRY}/${IMAGE_PREFIX}crawler:latest
+
+# Start with --no-build flag
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate --no-build
+
+# Verify containers use registry images
+docker ps --format "table {{.Names}}\t{{.Image}}"
+```
+
+**Prevention:**
+- Always use `make prod-docker-no-caddy` or equivalent Make targets (they include `--no-build`)
+- Never run `docker compose up` directly without `--no-build` in production
+- Verify image SHAs after deployment match registry
+
 ---
 
 ## 📈 Monitoring Deployment
