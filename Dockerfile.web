@@ -44,6 +44,12 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/config/node_modules ./packages/config/node_modules
 COPY --from=deps /app/packages/types/node_modules ./packages/types/node_modules
 COPY . .
+
+# Copy deployment.env from workflow artifact as .env.production
+# Next.js will load this during build to bake NEXT_PUBLIC_* into JS bundle
+# File is created by prepare-env job with values from SSM/GitHub Secrets
+COPY deployment.env .env.production
+
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter @atlasp2p/web build
 
