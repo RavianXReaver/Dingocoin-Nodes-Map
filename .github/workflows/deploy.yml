@@ -685,7 +685,7 @@ jobs:
             echo "======================================"
             echo "DEPLOYMENT SUCCESSFUL: $(date)"
             echo "======================================"
-ENDSSH
+          ENDSSH
 
       - name: Cleanup
         if: always()
