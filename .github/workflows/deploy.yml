@@ -525,31 +525,31 @@ jobs:
             set -o pipefail
 
             echo "======================================"
-            echo "DEPLOYMENT STARTED: \$(date)"
+            echo "DEPLOYMENT STARTED: $(date)"
             echo "======================================"
 
             cd ${{ vars.DEPLOY_PATH }}
-            echo "Working directory: \$(pwd)"
+            echo "Working directory: $(pwd)"
 
             if [ "${{ needs.detect-config.outputs.backup_enabled }}" = "true" ]; then
               echo ""
               echo "==> Attempting database backup..."
               mkdir -p backups
-              BACKUP_FILE="backups/db-\$(date +%Y%m%d-%H%M%S).sql"
+              BACKUP_FILE="backups/db-$(date +%Y%m%d-%H%M%S).sql"
 
               set +e
               docker compose exec -T db psql -U postgres -lqt | cut -d \| -f 1 | grep -qw atlasp2p 2>/dev/null
-              DB_EXISTS=\$?
+              DB_EXISTS=$?
               set -e
 
-              if [ \$DB_EXISTS -eq 0 ]; then
+              if [ $DB_EXISTS -eq 0 ]; then
                 set +e
-                docker compose exec -T db pg_dump -U postgres atlasp2p > "\${BACKUP_FILE}" 2>/dev/null
-                BACKUP_STATUS=\$?
+                docker compose exec -T db pg_dump -U postgres atlasp2p > "${BACKUP_FILE}" 2>/dev/null
+                BACKUP_STATUS=$?
                 set -e
 
-                if [ \$BACKUP_STATUS -eq 0 ]; then
-                  echo "✓ Backup created: \${BACKUP_FILE} (\$(wc -l < \${BACKUP_FILE}) lines)"
+                if [ $BACKUP_STATUS -eq 0 ]; then
+                  echo "✓ Backup created: ${BACKUP_FILE} ($(wc -l < ${BACKUP_FILE}) lines)"
                 else
                   echo "⚠ Backup failed (non-fatal)"
                 fi
@@ -562,7 +562,7 @@ jobs:
             echo "==> Loading registry configuration..."
 
             if [ ! -f .env ]; then
-              echo "ERROR: .env file not found in \$(pwd)"
+              echo "ERROR: .env file not found in $(pwd)"
               echo "Files in directory:"
               ls -la
               exit 1
@@ -575,31 +575,31 @@ jobs:
               exit 1
             fi
 
-            REGISTRY_TYPE=\${REGISTRY_TYPE:-ghcr}
-            REGISTRY_PUBLIC=\${REGISTRY_PUBLIC:-true}
-            REGISTRY_REGION=\${REGISTRY_REGION:-us-east-1}
-            IMAGE_PREFIX=\${IMAGE_PREFIX}
-            IMAGE_TAG=\${IMAGE_TAG:-latest}
+            REGISTRY_TYPE=${REGISTRY_TYPE:-ghcr}
+            REGISTRY_PUBLIC=${REGISTRY_PUBLIC:-true}
+            REGISTRY_REGION=${REGISTRY_REGION:-us-east-1}
+            IMAGE_PREFIX=${IMAGE_PREFIX}
+            IMAGE_TAG=${IMAGE_TAG:-latest}
 
-            echo "Registry Type: \${REGISTRY_TYPE}"
-            echo "Registry: \${REGISTRY}"
-            echo "Image Prefix: \${IMAGE_PREFIX}"
-            echo "Image Tag: \${IMAGE_TAG}"
+            echo "Registry Type: ${REGISTRY_TYPE}"
+            echo "Registry: ${REGISTRY}"
+            echo "Image Prefix: ${IMAGE_PREFIX}"
+            echo "Image Tag: ${IMAGE_TAG}"
 
             echo ""
-            if [ "\$REGISTRY_TYPE" = "ecr" ]; then
+            if [ "$REGISTRY_TYPE" = "ecr" ]; then
               echo "==> Authenticating to Amazon ECR..."
 
               if command -v aws &> /dev/null; then
                 echo "Using host AWS CLI"
-                if ! aws ecr get-login-password --region \${REGISTRY_REGION} | docker login --username AWS --password-stdin \${REGISTRY}; then
+                if ! aws ecr get-login-password --region ${REGISTRY_REGION} | docker login --username AWS --password-stdin ${REGISTRY}; then
                   echo "ERROR: ECR authentication failed"
                   exit 1
                 fi
-              elif [ -n "\${AWS_ACCESS_KEY_ID}" ] && [ -n "\${AWS_SECRET_ACCESS_KEY}" ]; then
+              elif [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
                 echo "Using AWS credentials from .env"
-                export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION=\${REGISTRY_REGION}
-                if ! aws ecr get-login-password --region \${REGISTRY_REGION} | docker login --username AWS --password-stdin \${REGISTRY}; then
+                export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION=${REGISTRY_REGION}
+                if ! aws ecr get-login-password --region ${REGISTRY_REGION} | docker login --username AWS --password-stdin ${REGISTRY}; then
                   echo "ERROR: ECR authentication failed"
                   exit 1
                 fi
@@ -609,11 +609,11 @@ jobs:
               fi
               echo "✓ ECR authentication successful"
 
-            elif [ "\$REGISTRY_TYPE" = "ghcr" ]; then
+            elif [ "$REGISTRY_TYPE" = "ghcr" ]; then
               echo "==> Authenticating to GitHub Container Registry..."
-              if [ "\$REGISTRY_PUBLIC" = "true" ]; then
+              if [ "$REGISTRY_PUBLIC" = "true" ]; then
                 echo "Registry is public, attempting pull without auth first..."
-                if ! docker pull \${REGISTRY}/\${IMAGE_PREFIX}web:\${IMAGE_TAG}; then
+                if ! docker pull ${REGISTRY}/${IMAGE_PREFIX}web:${IMAGE_TAG}; then
                   echo "Public pull failed, authenticating with GitHub token..."
                   if ! echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin; then
                     echo "ERROR: GHCR authentication failed"
@@ -629,18 +629,18 @@ jobs:
               fi
               echo "✓ GHCR authentication successful"
             else
-              echo "ERROR: Unknown registry type: \${REGISTRY_TYPE}"
+              echo "ERROR: Unknown registry type: ${REGISTRY_TYPE}"
               exit 1
             fi
 
             echo ""
             echo "==> Pulling Docker images..."
-            echo "Pulling web and crawler images from \${REGISTRY}..."
-            if ! docker pull "\${REGISTRY}/\${IMAGE_PREFIX}web:\${IMAGE_TAG}"; then
+            echo "Pulling web and crawler images from ${REGISTRY}..."
+            if ! docker pull "${REGISTRY}/${IMAGE_PREFIX}web:${IMAGE_TAG}"; then
               echo "ERROR: Failed to pull web image"
               exit 1
             fi
-            if ! docker pull "\${REGISTRY}/\${IMAGE_PREFIX}crawler:\${IMAGE_TAG}"; then
+            if ! docker pull "${REGISTRY}/${IMAGE_PREFIX}crawler:${IMAGE_TAG}"; then
               echo "ERROR: Failed to pull crawler image"
               exit 1
             fi
@@ -663,12 +663,12 @@ jobs:
               echo "==> Running health check..."
               for i in {1..10}; do
                 if curl -sf http://localhost:4000/api/stats > /dev/null; then
-                  echo "✓ Health check passed (attempt \$i)"
+                  echo "✓ Health check passed (attempt $i)"
                   break
                 fi
-                echo "Health check failed (attempt \$i/10), retrying..."
+                echo "Health check failed (attempt $i/10), retrying..."
                 sleep 3
-                if [ \$i -eq 10 ]; then
+                if [ $i -eq 10 ]; then
                   echo "ERROR: Health check failed after 10 attempts"
                   echo "Container logs:"
                   docker logs atlasp2p-web --tail 50 2>&1 || true
@@ -683,7 +683,7 @@ jobs:
 
             echo ""
             echo "======================================"
-            echo "DEPLOYMENT SUCCESSFUL: \$(date)"
+            echo "DEPLOYMENT SUCCESSFUL: $(date)"
             echo "======================================"
           ENDSSH
 
