@@ -515,7 +515,7 @@ export default function MapLibreMap({ viewMode, onNodeClick }: MapLibreMapProps)
     const badgeSize = Math.max(18, size * 0.39); // Scale badge proportionally
 
     // Determine the image source - custom avatar or default marker
-    const imageSrc = node.avatarUrl || '/logos/marker-icon.svg';
+    const imageSrc = node.avatarUrl || '/logos/dingocoin.png';
     const isCustomAvatar = !!node.avatarUrl;
 
     // Get tier badge icon for non-standard tiers

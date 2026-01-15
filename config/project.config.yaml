@@ -44,10 +44,11 @@ chainConfig:
   pubKeyHash: "1e"  # Dingocoin uses 0x1e for addresses starting with '1'
 
   dnsSeeds:
+    - dnsseed.dingocoin.com
+    - seed.australiacash.org
     - seed1.dingocoin.com
     - seed2.dingocoin.com
     - seed3.dingocoin.com
-    - vps.dingocoin.com
 
   seedNodes:
     - "161.43.201.255:33117"
