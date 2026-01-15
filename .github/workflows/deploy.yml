@@ -249,30 +249,50 @@ jobs:
         with:
           name: deployment-env
           path: .
-        continue-on-error: true
+
+      - name: Verify deployment.env exists
+        if: needs.detect-config.outputs.secrets_source != 'manual'
+        run: |
+          if [ ! -f deployment.env ]; then
+            echo "ERROR: deployment.env not found in build context"
+            exit 1
+          fi
+          echo "deployment.env exists with $(wc -l < deployment.env) lines"
+          # Show which NEXT_PUBLIC vars are set (without values for security)
+          echo "NEXT_PUBLIC_* variables found:"
+          grep "^NEXT_PUBLIC_" deployment.env | cut -d'=' -f1 || true
 
       - name: Extract build-time environment variables
         id: build-env
         run: |
           if [ -f deployment.env ]; then
             echo "Using deployment.env from SSM/GitHub Secrets"
-            # Extract NEXT_PUBLIC_* variables
-            export $(grep "^NEXT_PUBLIC_" deployment.env | xargs)
+            # Source the file to get variables into current shell
+            set -a
+            source deployment.env
+            set +a
           else
             echo "Using GitHub Secrets directly (manual mode)"
-            export NEXT_PUBLIC_SUPABASE_URL="${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
-            export NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
-            export NEXT_PUBLIC_TURNSTILE_SITE_KEY="${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}"
-            export NEXT_PUBLIC_ENABLE_TURNSTILE="${{ secrets.NEXT_PUBLIC_ENABLE_TURNSTILE }}"
-            export NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS="${{ secrets.NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS }}"
+            NEXT_PUBLIC_SUPABASE_URL="${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
+            NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY="${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}"
+            NEXT_PUBLIC_ENABLE_TURNSTILE="${{ secrets.NEXT_PUBLIC_ENABLE_TURNSTILE }}"
+            NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS="${{ secrets.NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS }}"
           fi
 
-          # Output for next steps
+          # Output for next steps (Docker build-args)
           echo "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" >> $GITHUB_OUTPUT
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY" >> $GITHUB_OUTPUT
           echo "NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY" >> $GITHUB_OUTPUT
           echo "NEXT_PUBLIC_ENABLE_TURNSTILE=$NEXT_PUBLIC_ENABLE_TURNSTILE" >> $GITHUB_OUTPUT
           echo "NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS=$NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS" >> $GITHUB_OUTPUT
+
+          # Debug: verify values are set (show only first 20 chars for security)
+          echo "Extracted NEXT_PUBLIC_* variables:"
+          echo "  SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:0:40}..."
+          echo "  ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:0:20}..."
+          echo "  TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:0:20}..."
+          echo "  ENABLE_TURNSTILE: $NEXT_PUBLIC_ENABLE_TURNSTILE"
 
       # Extract registry configuration from SSM artifact (single source of truth)
       - name: Extract registry configuration
@@ -397,6 +417,12 @@ jobs:
           labels: ${{ steps.meta-web.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ steps.build-env.outputs.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ steps.build-env.outputs.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ steps.build-env.outputs.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+            NEXT_PUBLIC_ENABLE_TURNSTILE=${{ steps.build-env.outputs.NEXT_PUBLIC_ENABLE_TURNSTILE }}
+            NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS=${{ steps.build-env.outputs.NEXT_PUBLIC_TURNSTILE_PROTECTED_ACTIONS }}
 
       - name: Extract metadata for crawler
         id: meta-crawler
