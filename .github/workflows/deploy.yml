@@ -337,7 +337,7 @@ jobs:
         id: meta-web
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.registry.outputs.url }}/${{ env.IMAGE_NAME }}-web
+          images: ${{ steps.registry.outputs.url }}/${{ vars.REPOSITORY_WEB }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -358,7 +358,7 @@ jobs:
         id: meta-crawler
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.registry.outputs.url }}/${{ env.IMAGE_NAME }}-crawler
+          images: ${{ steps.registry.outputs.url }}/${{ vars.REPOSITORY_CRAWLER }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=
