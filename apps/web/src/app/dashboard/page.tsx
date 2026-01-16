@@ -3,8 +3,9 @@
 import { Suspense, useMemo, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  BarChart3, Server, Globe, Activity, Zap, Loader2, TrendingUp, TrendingDown,
-  Minus, Info, RefreshCw, Filter, Calendar, MapPin, Network, Clock
+  BarChart3, Server, Globe, Activity, Zap, TrendingUp, TrendingDown,
+  Minus, Info, RefreshCw, Filter, Clock, MapPin, Network, Download,
+  CheckCircle, XCircle, AlertTriangle
 } from 'lucide-react';
 import { getThemeConfig } from '@/config';
 import { useNodes } from '@/hooks/useNodes';
@@ -80,7 +81,7 @@ function LivePulse({ color = '#10b981', size = 8 }: { color?: string; size?: num
   );
 }
 
-// Enhanced stat card with sparkline and tooltip
+// Stat card
 interface StatCardProps {
   icon: React.ElementType;
   label: string;
@@ -92,7 +93,6 @@ interface StatCardProps {
   tooltipContent?: React.ReactNode;
   iconColor?: string;
   pulse?: boolean;
-  onClick?: () => void;
 }
 
 function StatCard({
@@ -106,7 +106,6 @@ function StatCard({
   tooltipContent,
   iconColor,
   pulse,
-  onClick
 }: StatCardProps) {
   const theme = getThemeConfig();
   const color = iconColor || theme.primaryColor;
@@ -114,11 +113,7 @@ function StatCard({
   const trendColor = trend === 'up' ? '#10b981' : trend === 'down' ? '#ef4444' : '#6b7280';
 
   return (
-    <div
-      className={`group relative glass-strong rounded-2xl p-6 shadow-lg border border-border/50 hover:shadow-2xl hover:border-border transition-all duration-300 overflow-hidden ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''}`}
-      onClick={onClick}
-    >
-      {/* Gradient overlay */}
+    <div className="group relative glass-strong rounded-2xl p-6 shadow-lg border border-border/50 hover:shadow-2xl hover:border-border transition-all duration-300 overflow-hidden">
       <div
         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
         style={{
@@ -127,7 +122,6 @@ function StatCard({
       />
 
       <div className="relative z-10">
-        {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div
@@ -161,21 +155,18 @@ function StatCard({
           {pulse && <LivePulse color={color} />}
         </div>
 
-        {/* Value */}
         <div className="mb-3">
           <div className="text-3xl font-bold text-foreground tracking-tight">
             {typeof value === 'number' ? <AnimatedCounter value={value} /> : value}
           </div>
         </div>
 
-        {/* Sparkline */}
         {sparklineData && sparklineData.length > 0 && (
           <div className="mb-3">
             <Sparkline data={sparklineData} width={160} height={40} color={color} smooth />
           </div>
         )}
 
-        {/* Subtitle */}
         {subtitle && (
           <div className="text-sm font-medium text-muted-foreground">
             {subtitle}
@@ -183,7 +174,6 @@ function StatCard({
         )}
       </div>
 
-      {/* Decorative gradient */}
       <div
         className="absolute -bottom-4 -right-4 w-24 h-24 rounded-full blur-2xl opacity-20 group-hover:opacity-30 transition-opacity"
         style={{ backgroundColor: color }}
@@ -192,30 +182,17 @@ function StatCard({
   );
 }
 
-// Quick filter chip
-function FilterChip({
-  label,
-  active,
-  onClick
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+// Filter chip
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   const theme = getThemeConfig();
 
   return (
     <button
       onClick={onClick}
       className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-        active
-          ? 'shadow-lg scale-105'
-          : 'glass hover:glass-strong'
+        active ? 'shadow-lg scale-105' : 'glass hover:glass-strong'
       }`}
-      style={active ? {
-        backgroundColor: theme.primaryColor,
-        color: '#ffffff'
-      } : {}}
+      style={active ? { backgroundColor: theme.primaryColor, color: '#ffffff' } : {}}
     >
       {label}
     </button>
@@ -227,26 +204,29 @@ export default function DashboardPage() {
   const { nodes, isLoading } = useNodes();
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [activeTab, setActiveTab] = useState<'trends' | 'distribution'>('trends');
 
-  // Simulate real-time updates
   useEffect(() => {
+    if (!autoRefresh) return;
+
     const interval = setInterval(() => {
       setLastUpdate(new Date());
-    }, 30000); // Update every 30s
+    }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [autoRefresh]);
 
   const stats = useMemo(() => {
     const total = nodes.length;
     const online = nodes.filter(n => n.status === 'up').length;
+    const offline = total - online;
     const uptime = total > 0 ? (online / total) * 100 : 0;
     const avgLatency = nodes.length > 0
       ? nodes.reduce((acc, n) => acc + (n.latencyAvg || 0), 0) / nodes.length
       : 0;
     const countries = new Set(nodes.map(n => n.countryName).filter(Boolean)).size;
 
-    // Calculate real country distribution
     const countryCount: Record<string, number> = {};
     nodes.forEach(node => {
       const country = node.countryName || 'Unknown';
@@ -258,21 +238,50 @@ export default function DashboardPage() {
       .slice(0, 3)
       .map(([country, count]) => ({ country, count }));
 
-    // Generate sparklines from actual latency distribution (last 20 nodes as sample)
     const latencySparkline = nodes.slice(-20).map(n => n.latencyAvg || 0);
+
+    // Node health status
+    const healthy = nodes.filter(n => n.status === 'up' && (n.latencyAvg || 0) < 200).length;
+    const degraded = nodes.filter(n => n.status === 'up' && (n.latencyAvg || 0) >= 200 && (n.latencyAvg || 0) < 500).length;
+    const unhealthy = nodes.filter(n => n.status === 'up' && (n.latencyAvg || 0) >= 500).length + offline;
 
     return {
       total,
       online,
+      offline,
       uptime,
       avgLatency,
       countries,
       topCountries,
+      healthy,
+      degraded,
+      unhealthy,
       sparklines: {
         latency: latencySparkline.length > 0 ? latencySparkline : undefined
       }
     };
   }, [nodes]);
+
+  const handleExport = () => {
+    const data = {
+      timestamp: new Date().toISOString(),
+      stats,
+      nodes: nodes.map(n => ({
+        ip: n.ip,
+        status: n.status,
+        country: n.countryName,
+        latency: n.latencyAvg
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `network-stats-${new Date().toISOString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -290,7 +299,7 @@ export default function DashboardPage() {
 
       <div className="container mx-auto px-4 py-8 relative z-10">
         <div className="max-w-7xl mx-auto">
-          {/* Header with controls */}
+          {/* Header */}
           <div className="mb-8">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
               <div className="flex items-center gap-4">
@@ -311,19 +320,36 @@ export default function DashboardPage() {
                   <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2">
                     <Clock className="h-3 w-3" />
                     Last updated {lastUpdate.toLocaleTimeString()}
+                    {autoRefresh && <span className="text-xs">(auto-refresh)</span>}
                   </p>
                 </div>
               </div>
 
-              {/* Time range filters */}
-              <div className="flex items-center gap-2">
+              {/* Controls */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <FilterChip label="24 Hours" active={timeRange === '24h'} onClick={() => setTimeRange('24h')} />
                 <FilterChip label="7 Days" active={timeRange === '7d'} onClick={() => setTimeRange('7d')} />
                 <FilterChip label="30 Days" active={timeRange === '30d'} onClick={() => setTimeRange('30d')} />
-                <Tooltip content="Refresh dashboard data">
-                  <button className="p-2 glass-strong rounded-xl hover:shadow-lg transition-all active:scale-95">
-                    <RefreshCw className="h-4 w-4 text-muted-foreground" />
+
+                <Tooltip content={autoRefresh ? "Disable auto-refresh" : "Enable auto-refresh"}>
+                  <button
+                    onClick={() => setAutoRefresh(!autoRefresh)}
+                    className={`p-2 rounded-xl transition-all active:scale-95 ${
+                      autoRefresh ? 'glass-strong shadow-lg' : 'glass'
+                    }`}
+                    style={autoRefresh ? { backgroundColor: `${theme.primaryColor}20` } : {}}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} style={autoRefresh ? { color: theme.primaryColor } : {}} />
+                  </button>
+                </Tooltip>
+
+                <Tooltip content="Export dashboard data">
+                  <button
+                    onClick={handleExport}
+                    className="p-2 glass-strong rounded-xl hover:shadow-lg transition-all active:scale-95"
+                  >
+                    <Download className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </Tooltip>
               </div>
@@ -332,7 +358,7 @@ export default function DashboardPage() {
 
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              {[...Array(6)].map((_, i) => (
+              {[...Array(4)].map((_, i) => (
                 <div key={i} className="glass-strong rounded-2xl p-8 shadow-xl border border-border/50 animate-pulse">
                   <div className="h-12 w-12 bg-muted/50 rounded-xl mb-4"></div>
                   <div className="h-10 bg-muted/50 rounded-lg mb-3"></div>
@@ -343,18 +369,18 @@ export default function DashboardPage() {
             </div>
           ) : (
             <>
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              {/* HERO STATS - 4 Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard
                   icon={Server}
                   label="Total Nodes"
                   value={stats.total}
-                  subtitle={`${stats.online} currently online`}
+                  subtitle={`${stats.online} online, ${stats.offline} offline`}
                   tooltipContent={
                     <div>
                       <div className="font-semibold mb-1">Total Network Nodes</div>
                       <div className="text-xs text-muted-foreground">
-                        All nodes ever registered in the network
+                        All nodes registered in the network
                       </div>
                     </div>
                   }
@@ -363,15 +389,15 @@ export default function DashboardPage() {
 
                 <StatCard
                   icon={Activity}
-                  label="Active Now"
+                  label="Active Nodes"
                   value={stats.online}
-                  subtitle={`${stats.uptime.toFixed(1)}% network uptime`}
+                  subtitle={`${stats.uptime.toFixed(1)}% uptime`}
                   trend="up"
                   tooltipContent={
                     <div>
-                      <div className="font-semibold mb-1">Currently Active Nodes</div>
+                      <div className="font-semibold mb-1">Currently Active</div>
                       <div className="text-xs text-muted-foreground">
-                        Nodes responding to ping within last 5 minutes
+                        Nodes responding to ping
                       </div>
                     </div>
                   }
@@ -383,12 +409,12 @@ export default function DashboardPage() {
                   icon={Globe}
                   label="Countries"
                   value={stats.countries}
-                  subtitle="Global network coverage"
+                  subtitle="Global reach"
                   tooltipContent={
                     <div>
-                      <div className="font-semibold mb-1">Geographic Distribution</div>
+                      <div className="font-semibold mb-1">Geographic Coverage</div>
                       <div className="text-xs text-muted-foreground">
-                        Number of countries with active nodes
+                        Countries with active nodes
                       </div>
                     </div>
                   }
@@ -405,9 +431,9 @@ export default function DashboardPage() {
                   sparklineData={stats.sparklines.latency}
                   tooltipContent={
                     <div>
-                      <div className="font-semibold mb-1">Average Network Latency</div>
+                      <div className="font-semibold mb-1">Network Latency</div>
                       <div className="text-xs text-muted-foreground mb-2">
-                        Mean response time across all active nodes
+                        Mean response time across nodes
                       </div>
                       <div className="text-xs">
                         <div className="text-success">• &lt;200ms: Excellent</div>
@@ -418,108 +444,171 @@ export default function DashboardPage() {
                   }
                   iconColor={stats.avgLatency < 200 ? '#10b981' : stats.avgLatency < 500 ? '#f59e0b' : '#ef4444'}
                 />
+              </div>
 
-                {/* Additional info cards */}
+              {/* INFO CARDS - 2 Wide Cards */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Node Health Status */}
                 <div className="glass-strong rounded-2xl p-6 shadow-lg border border-border/50 hover:shadow-2xl transition-all">
-                  <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-3 mb-6">
                     <div className="p-3 rounded-xl" style={{ backgroundColor: `${theme.primaryColor}20` }}>
                       <Network className="h-5 w-5" style={{ color: theme.primaryColor }} />
                     </div>
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Network Health
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">Node Health Status</h3>
+                      <p className="text-xs text-muted-foreground">Performance distribution</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-success" />
+                        <span className="text-sm text-muted-foreground">Healthy (&lt;200ms)</span>
+                      </div>
+                      <span className="text-lg font-bold text-success">{stats.healthy}</span>
+                    </div>
+                    <div className="w-full bg-muted/30 rounded-full h-2">
+                      <div
+                        className="h-2 rounded-full bg-success transition-all duration-1000"
+                        style={{ width: `${(stats.healthy / stats.total) * 100}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-warning" />
+                        <span className="text-sm text-muted-foreground">Degraded (200-500ms)</span>
+                      </div>
+                      <span className="text-lg font-bold text-warning">{stats.degraded}</span>
+                    </div>
+                    <div className="w-full bg-muted/30 rounded-full h-2">
+                      <div
+                        className="h-2 rounded-full bg-warning transition-all duration-1000"
+                        style={{ width: `${(stats.degraded / stats.total) * 100}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4 text-destructive" />
+                        <span className="text-sm text-muted-foreground">Unhealthy/Offline</span>
+                      </div>
+                      <span className="text-lg font-bold text-destructive">{stats.unhealthy}</span>
+                    </div>
+                    <div className="w-full bg-muted/30 rounded-full h-2">
+                      <div
+                        className="h-2 rounded-full bg-destructive transition-all duration-1000"
+                        style={{ width: `${(stats.unhealthy / stats.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Regions */}
+                <div className="glass-strong rounded-2xl p-6 shadow-lg border border-border/50 hover:shadow-2xl transition-all">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 rounded-xl" style={{ backgroundColor: `${theme.secondaryColor}20` }}>
+                      <MapPin className="h-5 w-5" style={{ color: theme.secondaryColor }} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">Top Regions</h3>
+                      <p className="text-xs text-muted-foreground">Geographic distribution</p>
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Uptime</span>
-                      <span className="text-sm font-bold text-success">{stats.uptime.toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full bg-muted/30 rounded-full h-2">
-                      <div
-                        className="h-2 rounded-full transition-all duration-1000"
-                        style={{
-                          width: `${stats.uptime}%`,
-                          backgroundColor: stats.uptime >= 90 ? '#10b981' : stats.uptime >= 70 ? theme.primaryColor : '#ef4444'
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-sm text-muted-foreground">Response Rate</span>
-                      <span className="text-sm font-bold text-foreground">
-                        {((stats.online / stats.total) * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <Tooltip
-                  content={
-                    <div>
-                      <div className="font-semibold mb-1">Geographic Coverage</div>
-                      <div className="text-xs text-muted-foreground">
-                        Top 3 countries by node count
-                      </div>
-                    </div>
-                  }
-                >
-                  <div className="glass-strong rounded-2xl p-6 shadow-lg border border-border/50 hover:shadow-2xl transition-all cursor-help">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-3 rounded-xl" style={{ backgroundColor: `${theme.secondaryColor}20` }}>
-                        <MapPin className="h-5 w-5" style={{ color: theme.secondaryColor }} />
-                      </div>
-                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Top Regions
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      {stats.topCountries.map(({ country, count }) => (
-                        <div key={country} className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                            {country}
-                          </span>
-                          <span className="text-sm font-bold text-foreground">
+                    {stats.topCountries.map(({ country, count }) => (
+                      <div key={country} className="flex justify-between items-center p-3 glass rounded-xl hover:glass-strong transition-all">
+                        <span className="text-sm font-medium text-foreground truncate max-w-[150px]">
+                          {country}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-32 h-2 bg-muted/30 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-1000"
+                              style={{
+                                width: `${(count / stats.total) * 100}%`,
+                                backgroundColor: theme.secondaryColor
+                              }}
+                            />
+                          </div>
+                          <span className="text-lg font-bold text-foreground min-w-[30px] text-right">
                             {count}
                           </span>
                         </div>
-                      ))}
-                      {stats.topCountries.length === 0 && (
-                        <div className="text-xs text-muted-foreground text-center py-2">
-                          No data available
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
+                    {stats.topCountries.length === 0 && (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        No geographic data available
+                      </div>
+                    )}
                   </div>
-                </Tooltip>
+                </div>
               </div>
 
-              {/* Charts Section */}
+              {/* CHARTS SECTION */}
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-foreground mb-6 flex items-center gap-3">
-                  <div className="h-1 w-8 rounded-full" style={{ backgroundColor: theme.primaryColor }} />
-                  Network Analytics
-                  <span className="text-sm font-normal text-muted-foreground">({timeRange})</span>
-                </h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
+                    <div className="h-1 w-8 rounded-full" style={{ backgroundColor: theme.primaryColor }} />
+                    Network Analytics
+                    <span className="text-sm font-normal text-muted-foreground">({timeRange})</span>
+                  </h2>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                  <Suspense fallback={<ChartSkeleton />}>
-                    <NetworkTrendsChart />
-                  </Suspense>
-                  <Suspense fallback={<ChartSkeleton />}>
-                    <VersionDistributionChart />
-                  </Suspense>
+                  {/* Chart tabs */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setActiveTab('trends')}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                        activeTab === 'trends'
+                          ? 'shadow-lg'
+                          : 'glass hover:glass-strong'
+                      }`}
+                      style={activeTab === 'trends' ? { backgroundColor: theme.primaryColor, color: '#ffffff' } : {}}
+                    >
+                      Trends & History
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('distribution')}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                        activeTab === 'distribution'
+                          ? 'shadow-lg'
+                          : 'glass hover:glass-strong'
+                      }`}
+                      style={activeTab === 'distribution' ? { backgroundColor: theme.primaryColor, color: '#ffffff' } : {}}
+                    >
+                      Distribution
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Suspense fallback={<ChartSkeleton />}>
-                    <CountryDistributionChart />
-                  </Suspense>
-                  <Suspense fallback={<ChartSkeleton />}>
-                    <TierDistributionChart />
-                  </Suspense>
-                </div>
+                {activeTab === 'trends' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Suspense fallback={<ChartSkeleton />}>
+                      <div className="glass-strong rounded-2xl p-6 shadow-xl border-2 border-primary/30">
+                        <NetworkTrendsChart />
+                      </div>
+                    </Suspense>
+                    <Suspense fallback={<ChartSkeleton />}>
+                      <VersionDistributionChart />
+                    </Suspense>
+                  </div>
+                )}
+
+                {activeTab === 'distribution' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Suspense fallback={<ChartSkeleton />}>
+                      <div className="glass-strong rounded-2xl p-6 shadow-xl border-2 border-primary/30">
+                        <CountryDistributionChart />
+                      </div>
+                    </Suspense>
+                    <Suspense fallback={<ChartSkeleton />}>
+                      <TierDistributionChart />
+                    </Suspense>
+                  </div>
+                )}
               </div>
             </>
           )}
