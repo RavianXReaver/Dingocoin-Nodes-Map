@@ -240,10 +240,12 @@ function ResetPasswordContent() {
             </div>
 
             <h1 className="text-3xl font-bold mb-2 bg-gradient-to-br from-foreground to-muted-foreground bg-clip-text">
-              Set New Password
+              {mode === 'magic-link' ? 'Set New Password' : 'Complete Password Reset'}
             </h1>
             <p className="text-muted-foreground text-sm">
-              Enter your new password below
+              {mode === 'magic-link'
+                ? 'Enter your new password below'
+                : 'Your identity is verified. Choose a new password to secure your account.'}
             </p>
           </div>
 
@@ -317,14 +319,14 @@ function ResetPasswordContent() {
               </div>
             </div>
 
-            {/* Mode indicator for debugging */}
-            {mode === 'magic-link' && (
-              <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-xs text-green-700 dark:text-green-300">
-                  ✓ Link verified! Set your new password below.
-                </p>
-              </div>
-            )}
+            {/* Mode indicator */}
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                {mode === 'magic-link'
+                  ? '✓ Link verified! Set your new password below.'
+                  : '✓ Code verified! Choose a new password to complete the reset.'}
+              </p>
+            </div>
 
             {/* Submit Button */}
             <button

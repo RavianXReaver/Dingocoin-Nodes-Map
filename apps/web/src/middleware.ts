@@ -46,7 +46,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protected routes that require authentication
-  const protectedRoutes = ['/manage', '/my-nodes', '/verify', '/profile'];
+  // Note: /verify is NOT protected - it handles magic links which create sessions
+  const protectedRoutes = ['/manage', '/my-nodes', '/profile'];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   if (isProtectedRoute) {
