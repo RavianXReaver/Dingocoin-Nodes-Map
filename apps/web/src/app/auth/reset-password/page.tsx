@@ -222,14 +222,16 @@ function ResetPasswordContent() {
       />
 
       <div className="w-full max-w-md relative z-10">
-        {/* Back to Home */}
-        <button
-          onClick={() => router.push('/')}
-          className="mb-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 group"
-        >
-          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-          Back to Home
-        </button>
+        {/* Back to Home - only show before password reset is required */}
+        {mode !== 'reset-password' && (
+          <button
+            onClick={() => router.push('/')}
+            className="mb-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 group"
+          >
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+            Back to Home
+          </button>
+        )}
 
         {/* Reset Password Card */}
         <div className="glass-strong rounded-2xl shadow-2xl p-8 animate-fade-in-scale">
@@ -249,6 +251,22 @@ function ResetPasswordContent() {
                 ? 'Enter your new password below'
                 : 'Your identity is verified. Choose a new password to secure your account.'}
             </p>
+          </div>
+
+          {/* Security Notice */}
+          <div className="mb-6 p-4 bg-orange-500/10 border-2 border-orange-500/30 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm text-orange-600 dark:text-orange-400 font-semibold">
+                  Password Reset Required
+                </p>
+                <p className="text-xs text-orange-600/80 dark:text-orange-400/80 mt-1">
+                  Your identity has been verified. You must set a new password to access your account.
+                  You cannot navigate away until this is complete.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Success Message */}
@@ -350,14 +368,18 @@ function ResetPasswordContent() {
             </button>
           </form>
 
-          {/* Back to Login */}
-          {!success && (
+          {/* Cancel / Sign Out option during password reset */}
+          {!success && mode === 'reset-password' && (
             <div className="mt-6 text-center">
               <button
-                onClick={() => router.push('/auth')}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={async () => {
+                  const supabase = createClient();
+                  await supabase.auth.signOut();
+                  router.push('/auth');
+                }}
+                className="text-sm text-muted-foreground hover:text-red-500 transition-colors"
               >
-                Back to login
+                Cancel password reset and sign out
               </button>
             </div>
           )}
