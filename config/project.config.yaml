@@ -434,7 +434,7 @@ features:
     themeSwitcher: true
 
   turnstile:
-    enabled: false
+    enabled: true
     # Site key (public key) - safe to commit
     siteKey: "0x4AAAAAACHmrULrWXGjnBlP"
     # Turnstile widget mode
