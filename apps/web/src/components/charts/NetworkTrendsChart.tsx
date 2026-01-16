@@ -111,7 +111,7 @@ export const NetworkTrendsChart = memo(function NetworkTrendsChart() {
           <Line
             type="monotone"
             dataKey="countries"
-            stroke={theme.secondaryColor}
+            stroke="hsl(var(--chart-2))"
             strokeWidth={2}
             name="Countries"
             dot={false}
