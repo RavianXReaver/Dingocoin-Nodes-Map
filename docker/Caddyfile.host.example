@@ -48,31 +48,55 @@
 # ============================================
 
 # ============================================
-# SCENARIO 1: Cloudflare Flexible TLS
+# SCENARIO 1A: Path-Based Routing (RECOMMENDED)
 # ============================================
 # WHEN TO USE:
-# - Using Cloudflare as CDN/DNS
-# - Cloudflare SSL/TLS mode: Flexible
-# - Cloudflare terminates HTTPS, proxies HTTP to you
+# - Single domain for both web app and API
+# - Simpler CORS (same-origin)
+# - Using Cloudflare Flexible TLS or Direct HTTPS
 #
-# CLOUDFLARE CONFIGURATION REQUIRED:
-# - SSL/TLS mode: Flexible
-# - Always Use HTTPS: OFF (prevent redirect loops)
-# - Proxy status: Enabled (orange cloud)
+# ARCHITECTURE:
+# - nodes.example.com         → Web App
+# - nodes.example.com/supabase/* → Supabase API
 #
 # PLACEHOLDERS TO REPLACE:
 # - nodes.example.com → Your actual domain from SITE_URL
-# - api.nodes.example.com → Your actual domain from API_EXTERNAL_URL
 # - localhost:4000 → WEB_PORT from .env (default: 4000)
 # - localhost:4020 → KONG_PORT from .env (default: 4020)
+#
+# CLOUDFLARE CONFIGURATION (if using):
+# - SSL/TLS mode: Flexible
+# - Always Use HTTPS: OFF (prevent redirect loops)
+# - Proxy status: Enabled (orange cloud)
 # ============================================
 
 # ================================
-# WEB APP
+# SINGLE DOMAIN (Path-Based)
 # ================================
 http://nodes.example.com {
 
-    # --- Next.js static assets (aggressive caching) ---
+    # ===========================================
+    # SUPABASE API (Kong Gateway)
+    # ===========================================
+    # Strip /supabase prefix and proxy to Kong
+    handle_path /supabase/* {
+        reverse_proxy localhost:4020 {
+            # Pass original host for CORS
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Port 443
+
+            # WebSocket support for Realtime
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
+        }
+    }
+
+    # ===========================================
+    # NEXT.JS STATIC ASSETS (Aggressive Caching)
+    # ===========================================
     handle /_next/static/* {
         reverse_proxy localhost:4000 {
             header_up X-Forwarded-Proto https
@@ -102,7 +126,9 @@ http://nodes.example.com {
         header Cache-Control "public, max-age=86400"
     }
 
-    # --- Catch-all: Next.js app ---
+    # ===========================================
+    # WEB APPLICATION (Next.js) - Catch-all
+    # ===========================================
     handle {
         reverse_proxy localhost:4000 {
             header_up X-Forwarded-Proto https
@@ -123,32 +149,96 @@ http://nodes.example.com {
     encode gzip
 }
 
-# ================================
-# API (Supabase Kong Gateway)
-# ================================
-# ONLY FOR SELF-HOSTED MODE (prod-docker-no-caddy)
-# If using Cloud mode (prod-cloud-no-caddy), COMMENT THIS OUT
-# because your API is hosted on Supabase Cloud, not locally.
-# ================================
-http://api.nodes.example.com {
-    # Proxy to Kong API Gateway (Supabase)
-    reverse_proxy localhost:4020 {
-        header_up X-Forwarded-Proto https
-        header_up X-Forwarded-Host {host}
-        header_up X-Forwarded-Port 443
-        header_up X-Forwarded-For {remote}
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-    }
+# ============================================
+# SCENARIO 1B: Subdomain Routing (LEGACY)
+# ============================================
+# WHEN TO USE:
+# - Already have separate subdomains configured
+# - DNS already pointing api.nodes.example.com to your server
+#
+# ARCHITECTURE:
+# - nodes.example.com     → Web App
+# - api.nodes.example.com → Supabase API
+#
+# UNCOMMENT BLOCKS BELOW if using subdomain routing:
+# ============================================
 
-    # --- Security headers ---
-    header {
-        X-Frame-Options "SAMEORIGIN"
-        X-Content-Type-Options "nosniff"
-    }
-
-    encode gzip
-}
+# # ================================
+# # WEB APP (Subdomain Mode)
+# # ================================
+# http://nodes.example.com {
+#     # --- Next.js static assets ---
+#     handle /_next/static/* {
+#         reverse_proxy localhost:4000 {
+#             header_up X-Forwarded-Proto https
+#             header_up X-Forwarded-Host {host}
+#             header_up X-Forwarded-Port 443
+#         }
+#         header Cache-Control "public, max-age=31536000, immutable"
+#     }
+#
+#     # --- Public images ---
+#     handle /images/* {
+#         reverse_proxy localhost:4000 {
+#             header_up X-Forwarded-Proto https
+#             header_up X-Forwarded-Host {host}
+#             header_up X-Forwarded-Port 443
+#         }
+#         header Cache-Control "public, max-age=2592000"
+#     }
+#
+#     # --- Favicon ---
+#     handle /favicon.ico {
+#         reverse_proxy localhost:4000 {
+#             header_up X-Forwarded-Proto https
+#             header_up X-Forwarded-Host {host}
+#             header_up X-Forwarded-Port 443
+#         }
+#         header Cache-Control "public, max-age=86400"
+#     }
+#
+#     # --- Catch-all: Next.js app ---
+#     handle {
+#         reverse_proxy localhost:4000 {
+#             header_up X-Forwarded-Proto https
+#             header_up X-Forwarded-Host {host}
+#             header_up X-Forwarded-Port 443
+#             header_up X-Forwarded-For {remote}
+#             header_up X-Real-IP {remote_host}
+#         }
+#     }
+#
+#     # --- Security headers ---
+#     header {
+#         X-Frame-Options "SAMEORIGIN"
+#         X-Content-Type-Options "nosniff"
+#         Referrer-Policy "strict-origin-when-cross-origin"
+#     }
+#
+#     encode gzip
+# }
+#
+# # ================================
+# # API (Supabase Kong Gateway - Subdomain Mode)
+# # ================================
+# http://api.nodes.example.com {
+#     reverse_proxy localhost:4020 {
+#         header_up X-Forwarded-Proto https
+#         header_up X-Forwarded-Host {host}
+#         header_up X-Forwarded-Port 443
+#         header_up X-Forwarded-For {remote}
+#         header_up Host {host}
+#         header_up X-Real-IP {remote_host}
+#     }
+#
+#     # --- Security headers ---
+#     header {
+#         X-Frame-Options "SAMEORIGIN"
+#         X-Content-Type-Options "nosniff"
+#     }
+#
+#     encode gzip
+# }
 
 # ============================================
 # SCENARIO 2: Direct HTTPS (No Cloudflare)

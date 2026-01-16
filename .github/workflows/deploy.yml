@@ -34,6 +34,8 @@ jobs:
       rollback_enabled: ${{ steps.detect.outputs.rollback_enabled }}
       health_check_enabled: ${{ steps.detect.outputs.health_check_enabled }}
       deployment_mode: ${{ steps.detect.outputs.deployment_mode }}
+      caddy_enabled: ${{ steps.detect.outputs.caddy_enabled }}
+      caddy_mode: ${{ steps.detect.outputs.caddy_mode }}
 
     steps:
       - name: Checkout
@@ -63,6 +65,8 @@ jobs:
           ROLLBACK_ENABLED=$(yq '.deployment.rollback.enabled // true' $CONFIG_FILE)
           HEALTH_CHECK_ENABLED=$(yq '.deployment.healthCheck.enabled // true' $CONFIG_FILE)
           DEPLOYMENT_MODE=$(yq '.deployment.mode // "self-hosted-docker"' $CONFIG_FILE)
+          CADDY_ENABLED=$(yq '.deployment.caddy.enabled // true' $CONFIG_FILE)
+          CADDY_MODE=$(yq '.deployment.caddy.mode // "auto"' $CONFIG_FILE)
 
           # Determine SSM parameter name (prefer GitHub var, fallback to config)
           SSM_PARAM_NAME="${{ vars.SSM_PARAM_NAME }}"
@@ -90,6 +94,8 @@ jobs:
           echo "rollback_enabled=$ROLLBACK_ENABLED" >> $GITHUB_OUTPUT
           echo "health_check_enabled=$HEALTH_CHECK_ENABLED" >> $GITHUB_OUTPUT
           echo "deployment_mode=$DEPLOYMENT_MODE" >> $GITHUB_OUTPUT
+          echo "caddy_enabled=$CADDY_ENABLED" >> $GITHUB_OUTPUT
+          echo "caddy_mode=$CADDY_MODE" >> $GITHUB_OUTPUT
 
           echo "Configuration detected:"
           echo "  Secrets Source: $SECRETS_SOURCE"
@@ -97,6 +103,8 @@ jobs:
           echo "  Rollback Enabled: $ROLLBACK_ENABLED"
           echo "  Health Check Enabled: $HEALTH_CHECK_ENABLED"
           echo "  Deployment Mode: $DEPLOYMENT_MODE"
+          echo "  Caddy Enabled: $CADDY_ENABLED"
+          echo "  Caddy Mode: $CADDY_MODE"
           echo "  NOTE: Registry config comes from SSM/deployment.env (single source of truth)"
 
   # ===========================================
@@ -540,6 +548,66 @@ jobs:
         run: |
           scp -i ~/.ssh/deploy_key deployment.env ${{ vars.DEPLOY_USER }}@${{ vars.SSH_HOST }}:${{ vars.DEPLOY_PATH }}/.env
           echo "Copied deployment.env to server"
+
+      # Configure host Caddy if using host mode
+      - name: Checkout code (for Caddyfile)
+        if: needs.detect-config.outputs.caddy_mode == 'host'
+        uses: actions/checkout@v4
+
+      - name: Deploy Caddyfile to host
+        if: needs.detect-config.outputs.caddy_mode == 'host'
+        run: |
+          # Extract SITE_URL from deployment.env to use as domain
+          DOMAIN=$(grep "^SITE_URL=" deployment.env | cut -d'=' -f2 | sed 's|https://||' | sed 's|http://||')
+          if [ -z "$DOMAIN" ]; then
+            echo "Error: SITE_URL not found in deployment.env"
+            exit 1
+          fi
+
+          # Generate Caddyfile from template
+          cat docker/Caddyfile.host.example | sed "s|nodes.example.com|$DOMAIN|g" > caddyfile-generated
+
+          # Copy to server
+          scp -i ~/.ssh/deploy_key caddyfile-generated ${{ vars.DEPLOY_USER }}@${{ vars.SSH_HOST }}:/tmp/caddyfile-deploy
+
+          # Deploy and reload Caddy
+          ssh -i ~/.ssh/deploy_key ${{ vars.DEPLOY_USER }}@${{ vars.SSH_HOST }} << 'CADDY_SCRIPT'
+            set -e
+            # Determine site config name from project name
+            PROJECT_NAME=$(basename ${{ vars.DEPLOY_PATH }})
+            CADDY_SITE="/etc/caddy/sites/${PROJECT_NAME}.Caddyfile"
+
+            echo "Deploying Caddyfile to: $CADDY_SITE"
+
+            # Backup existing config
+            if [ -f "$CADDY_SITE" ]; then
+              sudo cp "$CADDY_SITE" "${CADDY_SITE}.backup-$(date +%Y%m%d-%H%M%S)"
+              echo "Backed up existing Caddyfile"
+            fi
+
+            # Deploy new config
+            sudo mv /tmp/caddyfile-deploy "$CADDY_SITE"
+            sudo chown root:root "$CADDY_SITE"
+            sudo chmod 644 "$CADDY_SITE"
+
+            # Validate before reloading
+            if sudo caddy validate --config /etc/caddy/Caddyfile; then
+              echo "Caddyfile validation passed"
+              sudo systemctl reload caddy
+              echo "Caddy reloaded successfully"
+            else
+              echo "Error: Caddyfile validation failed"
+              # Restore backup if it exists
+              if [ -f "${CADDY_SITE}.backup-"* ]; then
+                LATEST_BACKUP=$(ls -t "${CADDY_SITE}.backup-"* | head -1)
+                sudo cp "$LATEST_BACKUP" "$CADDY_SITE"
+                echo "Restored backup: $LATEST_BACKUP"
+              fi
+              exit 1
+            fi
+          CADDY_SCRIPT
+
+          echo "Caddyfile deployed and Caddy reloaded"
 
       - name: Deploy application
         run: |
