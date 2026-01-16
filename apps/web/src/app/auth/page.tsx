@@ -179,8 +179,11 @@ function AuthPageContent() {
           throw resetError;
         }
 
-        setSuccess('Password reset email sent! The email contains both a link and a 6-digit code. Use either one to reset your password.');
-        // Keep the success message visible longer (no auto-redirect)
+        setSuccess('Password reset email sent! Check your email for the 6-digit code.');
+        // Redirect to reset-password page where user can enter OTP
+        setTimeout(() => {
+          router.push(`/auth/reset-password?email=${encodeURIComponent(email)}`);
+        }, 2000);
       }
     } catch (err: any) {
       console.error('Auth error:', err);
